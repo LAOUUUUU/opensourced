@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/LAOUUUUU/opensourced/security/advisories/new
+    about: Please never open a public issue for a security problem. This form is private to you and the maintainer.
+  - name: Help with the VPN
+    url: https://barely-free.com/help
+    about: Setting up a device, the apps, the servers and common problems.
