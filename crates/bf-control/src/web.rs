@@ -2,7 +2,8 @@
 //!
 //! One handler takes every request, so every answer, even a 404 or a 405, goes through
 //! [`secured`] and carries the same security headers. The pages live in `web/` as real
-//! files; nothing is loaded from outside, which is why the policy below can be so strict.
+//! files, and so do the font files; nothing is loaded from outside, which is why the
+//! policy below can be so strict.
 
 use std::future::Future;
 use std::io;
@@ -36,6 +37,21 @@ const SECURITY_TXT: &str = include_str!("../web/security.txt");
 const CHECK_ANSWER: &str = "<!-- the answer -->";
 const SITE_CSS: &str = include_str!("../web/site.css");
 const FAVICON: &str = include_str!("../web/favicon.svg");
+/// The site's fonts, served from here so that nothing loads from another site: Geist (Latin,
+/// variable weight) for text and labels, and Bodoni Moda (Latin, variable weight and optical
+/// size, upright and italic) for headings. Bodoni Moda's files are Fontsource's, narrowed by
+/// fontTools to the weights and optical sizes the stylesheet uses (`docs/modules/bf-control.md`).
+/// Their licence, the SIL Open Font License, is served beside them.
+const GEIST: &[u8] = include_bytes!("../web/fonts/geist-latin-wght-normal.woff2");
+const BODONI: &[u8] = include_bytes!("../web/fonts/bodoni-moda-latin-normal.woff2");
+const BODONI_ITALIC: &[u8] = include_bytes!("../web/fonts/bodoni-moda-latin-italic.woff2");
+const FONT_LICENSE: &str = include_str!("../web/fonts/OFL.txt");
+const GEIST_PATH: &str = "/assets/fonts/geist-latin-wght-normal.woff2";
+const BODONI_PATH: &str = "/assets/fonts/bodoni-moda-latin-normal.woff2";
+const BODONI_ITALIC_PATH: &str = "/assets/fonts/bodoni-moda-latin-italic.woff2";
+/// A font's address carries its fingerprint (`?v=` in the stylesheet), so a changed file is
+/// a new address and the old one may be kept for good.
+const FONT_CACHE: &str = "public, max-age=31536000, immutable";
 /// Everything may be fetched, so a `noindex` on a page is seen. No `Disallow` and no `/admin`
 /// (the site answers that like any unknown path; a line here would announce it).
 const ROBOTS: &str = "User-agent: *\nAllow: /\n\nSitemap: https://barely-free.com/sitemap.xml\n";
@@ -46,16 +62,17 @@ const SITEMAP: &str = include_str!("../web/sitemap.xml");
 const HTML: &str = "text/html; charset=utf-8";
 const TEXT: &str = "text/plain; charset=utf-8";
 const XML: &str = "application/xml; charset=utf-8";
+const WOFF2: &str = "font/woff2";
 
-/// Nothing but this site's own stylesheet and icons may load, nothing may run, no other
-/// site may frame it, and a form (the footer's theme buttons) may go to this site only.
-const POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; \
-                      form-action 'self'; frame-ancestors 'none'";
+/// Nothing but this site's own stylesheet, icons and fonts may load, nothing may run, no
+/// other site may frame it, and a form (the footer's theme buttons) may go to this site only.
+const POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; \
+                      base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 /// The same, for the pages that have forms (`app.rs`): a form may be sent to this site
 /// and nowhere else. Nothing else differs.
-const APP_POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; \
-                          form-action 'self'; frame-ancestors 'none'";
+const APP_POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; \
+                          base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 /// The public pages send a referrer only to this site, for the same reason as the pages with
 /// forms below: they have a form too (the theme buttons). Nothing goes to other sites.
@@ -75,6 +92,8 @@ pub struct Page {
     pub cache_control: &'static str,
     pub allow: Option<&'static str>,
     pub body: &'static str,
+    /// The file itself, for an answer that is not text (a font). Then `body` is empty.
+    pub bytes: Option<&'static [u8]>,
 }
 
 /// Decides the answer for a method and a path (the query string is not part of the path).
@@ -96,6 +115,8 @@ pub fn page(method: &Method, path: &str) -> Page {
         "/status" => (HTML, "no-store", STATUS),
         "/assets/site.css" => ("text/css; charset=utf-8", "public, max-age=3600", SITE_CSS),
         "/favicon.svg" => ("image/svg+xml", "public, max-age=86400", FAVICON),
+        GEIST_PATH | BODONI_PATH | BODONI_ITALIC_PATH => (WOFF2, FONT_CACHE, ""),
+        "/assets/fonts/OFL.txt" => (TEXT, "public, max-age=86400", FONT_LICENSE),
         "/robots.txt" => (TEXT, "public, max-age=3600", ROBOTS),
         "/sitemap.xml" => (XML, "public, max-age=3600", SITEMAP),
         "/.well-known/security.txt" => (TEXT, "public, max-age=86400", SECURITY_TXT),
@@ -108,6 +129,7 @@ pub fn page(method: &Method, path: &str) -> Page {
                 cache_control: "no-store",
                 allow: None,
                 body: NOT_FOUND,
+                bytes: None,
             };
         }
     };
@@ -118,6 +140,7 @@ pub fn page(method: &Method, path: &str) -> Page {
             cache_control: "no-store",
             allow: Some("GET, HEAD"),
             body: "Method not allowed\n",
+            bytes: None,
         };
     }
     Page {
@@ -126,6 +149,17 @@ pub fn page(method: &Method, path: &str) -> Page {
         cache_control,
         allow: None,
         body,
+        bytes: font_bytes(path),
+    }
+}
+
+/// A font file's bytes, for the three addresses the stylesheet names; nothing for any other.
+fn font_bytes(path: &str) -> Option<&'static [u8]> {
+    match path {
+        GEIST_PATH => Some(GEIST),
+        BODONI_PATH => Some(BODONI),
+        BODONI_ITALIC_PATH => Some(BODONI_ITALIC),
+        _ => None,
     }
 }
 
@@ -151,7 +185,11 @@ fn with_security_headers(
 
 /// Turns a page into a response with the security headers on it.
 pub fn secured(page: &Page) -> Response<Body> {
-    secured_body(page, Body::from(page.body))
+    let body = match page.bytes {
+        Some(bytes) => Body::from(bytes),
+        None => Body::from(page.body),
+    };
+    secured_body(page, body)
 }
 
 /// Like [`secured`], with a body of its own in place of the page's.
@@ -257,14 +295,12 @@ async fn handle(State(site): State<Site>, request: Request) -> Response<Body> {
             .live
             .as_ref()
             .map(|live| live.board.snapshot_light((live.clock)()));
-        let mut html = CHECK.replacen(
+        let html = CHECK.replacen(
             CHECK_ANSWER,
             &check_answer(snapshot.as_ref(), request.headers()),
             1,
         );
-        if site.app.is_none() {
-            html = without_sign_in(html);
-        }
+        let html = for_visitor(html, &site, request.headers());
         return html_answer(&answer, themed(html, theme));
     }
     if answer.status == 200 && request.uri().path() == "/status" {
@@ -280,18 +316,13 @@ async fn handle(State(site): State<Site>, request: Request) -> Response<Body> {
                 crate::status::answer(&crate::status::empty_board(), &Default::default(), now, &[])
             }
         };
-        let mut html = STATUS.replacen(CHECK_ANSWER, &shown, 1);
-        if site.app.is_none() {
-            html = without_sign_in(html);
-        }
+        let html = STATUS.replacen(CHECK_ANSWER, &shown, 1);
+        let html = for_visitor(html, &site, request.headers());
         return html_answer(&answer, themed(html, theme));
     }
     if answer.status != 200 || request.uri().path() != "/" {
         // The 404 and the other fixed pages: the file as it is, in the chosen theme.
-        let mut html = answer.body.to_string();
-        if site.app.is_none() {
-            html = without_sign_in(html);
-        }
+        let html = for_visitor(answer.body.to_string(), &site, request.headers());
         return html_answer(&answer, themed(html, theme));
     }
     let sign_up_open = site.app.as_ref().is_some_and(|app| app.signup_open());
@@ -308,7 +339,9 @@ async fn handle(State(site): State<Site>, request: Request) -> Response<Body> {
         // buttons (`/theme` is the sign-in side's).
         html = without_sign_in(html.replace(SIGN_IN_LINK, SIGN_IN_OFF));
     } else if signed_in {
-        html = html.replace(SIGN_IN_LINK, ACCOUNT_LINK);
+        html = html
+            .replace(SIGN_IN_LINK, ACCOUNT_LINK)
+            .replacen(HEADER_CTA, "", 1);
     }
     if sign_up_open {
         html = open_wording(&html);
@@ -329,12 +362,29 @@ fn html_answer(answer: &Page, html: String) -> Response<Body> {
 /// The menu's link to the account, which sends anyone not signed in to the sign-in page.
 const ACCOUNT_NAV: &str = "\n    <a href=\"/account\">Account</a>";
 
+/// The menu's button to the sign-in page. It is for someone who is not signed in, on a site
+/// that has a sign-in side, so it is taken out for everyone else.
+const HEADER_CTA: &str = "\n    <a class=\"button\" href=\"/signin\">Get started</a>";
+
 /// A page for a site with no sign-in side: no menu link to the account, no theme buttons
 /// (`/theme` is the sign-in side's), and any other link to the sign-in pages left as plain
 /// text, since all of them would lead to a 404.
 fn without_sign_in(html: String) -> String {
-    let html = without_theme_form(html.replacen(ACCOUNT_NAV, "", 1));
+    let html = without_theme_form(
+        html.replacen(ACCOUNT_NAV, "", 1)
+            .replacen(HEADER_CTA, "", 1),
+    );
     unlinked(&unlinked(&html, "/signin"), "/account")
+}
+
+/// A fixed page for this visitor: without the sign-in side's links on a site that has none,
+/// and without the menu's "Get started" button for someone who is already signed in.
+fn for_visitor(html: String, site: &Site, headers: &axum::http::HeaderMap) -> String {
+    match &site.app {
+        None => without_sign_in(html),
+        Some(app) if app.signed_in(headers) => html.replacen(HEADER_CTA, "", 1),
+        Some(_) => html,
+    }
 }
 
 /// `html` with every link to `target` turned into its plain text.
@@ -418,15 +468,15 @@ const OPEN_WORDING: [(&str, &str); 5] = [
     ),
     (
         "<p class=\"badge\">Closed beta &middot; sign-up is not open yet</p>",
-        "<p class=\"badge\">Full release &middot; sign-up is open</p>",
+        "<p class=\"badge open\">Full release &middot; sign-up is open</p>",
     ),
     (
         SIGN_IN_LINK,
-        "<a class=\"button\" href=\"/signin\">Sign up or sign in</a>",
+        "<a class=\"button\" href=\"/signin\">Get started</a>",
     ),
     (
-        "<details><summary>Why can't I sign up yet?</summary><p>This is a closed beta while the service is rebuilt. Sign-up opens after the safeguards are in place.</p></details>",
-        "<details><summary>Can anybody sign up?</summary><p>Yes. Type your email, type the six-digit code we send you, and your account is made. We take a limited number of new accounts a day, so on a busy day you may be asked to try again tomorrow.</p></details>",
+        "<details name=\"faq\"><summary>Why can't I sign up yet?</summary><p>This is a closed beta while the service is rebuilt. Sign-up opens after the safeguards are in place.</p></details>",
+        "<details name=\"faq\"><summary>Can anybody sign up?</summary><p>Yes. Type your email, type the six-digit code we send you, and your account is made. We take a limited number of new accounts a day, so on a busy day you may be asked to try again tomorrow.</p></details>",
     ),
 ];
 
@@ -497,8 +547,12 @@ pub fn front_page(snapshot: &Snapshot, busy: &crate::closest::Busy) -> String {
     };
     let servers = crate::status::servers(snapshot, busy);
     let mut cards = String::from(
-        "<p>Live status, checked every few seconds. <a href=\"/status\">Full status</a></p>\n    <ul class=\"nodes\">\n",
+        "<p>Live status, checked every few seconds. <a href=\"/status\">Full status</a></p>\n",
     );
+    if let Some(svg) = crate::status::map(&servers) {
+        cards.push_str(&format!("    <figure class=\"board\">{svg}</figure>\n"));
+    }
+    cards.push_str("    <ul class=\"nodes\">\n");
     for server in &servers {
         cards.push_str(&format!("      {}\n", crate::status::card(server, false)));
     }
@@ -568,6 +622,7 @@ mod tests {
     use super::*;
     use crate::poller::{Health, NodeView};
 
+    mod front;
     mod legal;
     mod seo;
     mod status_page;
@@ -630,11 +685,14 @@ mod tests {
     #[test]
     fn the_front_page_says_closest_server_is_built_and_that_the_location_is_not_kept() {
         let front = get("/").body;
+        // The feature cards became the rows of a specification sheet (decision 028); the
+        // closest server is told in the Servers row.
         let card = front
-            .split("<li><h3>Closest server</h3>")
+            .split("<dt>Servers</dt>")
             .nth(1)
-            .and_then(|rest| rest.split("</li>").next())
-            .expect("the Closest server card");
+            .and_then(|rest| rest.split("</dd>").next())
+            .expect("the Servers row");
+        assert!(card.contains("closest server"), "{card}");
         assert!(!card.contains("Planned"), "{card}");
         let keep = front
             .split("<h2>What we keep</h2>")
@@ -664,10 +722,11 @@ mod tests {
 
     #[test]
     fn tracker_blocking_is_no_longer_planned_and_the_questions_say_how_to_switch_it_off() {
+        // The feature card became a row of the specification sheet (decision 028).
         let card = INDEX
-            .split("<h3>Trackers blocked</h3>")
+            .split("<dt>Trackers</dt>")
             .nth(1)
-            .and_then(|rest| rest.split("</li>").next())
+            .and_then(|rest| rest.split("</dd>").next())
             .unwrap();
         assert!(!card.contains("Planned"), "{card}");
         assert!(card.contains("It does not block ads."), "{card}");
@@ -873,6 +932,353 @@ mod tests {
         [byte(0), byte(2), byte(4)]
     }
 
+    /// `css` with its `/* ... */` comments taken out.
+    fn without_comments(css: &str) -> String {
+        let mut out = String::with_capacity(css.len());
+        let mut rest = css;
+        while let Some(start) = rest.find("/*") {
+            out.push_str(&rest[..start]);
+            rest = match rest[start..].find("*/") {
+                Some(end) => &rest[start + end + 2..],
+                None => "",
+            };
+        }
+        out.push_str(rest);
+        out
+    }
+
+    /// The addresses inside `url(...)` in `css`, with their quotes taken off.
+    fn css_urls(css: &str) -> Vec<String> {
+        css.split("url(")
+            .skip(1)
+            .map(|rest| {
+                rest.split(')')
+                    .next()
+                    .unwrap()
+                    .trim()
+                    .trim_matches(['"', '\''])
+                    .to_string()
+            })
+            .collect()
+    }
+
+    /// The at-rule preludes (`@media ...`, `@supports ...`) around byte `at` of `css`.
+    fn enclosing_at_rules(css: &str, at: usize) -> Vec<String> {
+        let mut stack: Vec<String> = Vec::new();
+        let mut start = 0;
+        for (i, c) in css[..at].char_indices() {
+            match c {
+                '{' => {
+                    stack.push(css[start..i].trim().to_string());
+                    start = i + 1;
+                }
+                '}' => {
+                    stack.pop();
+                    start = i + 1;
+                }
+                ';' => start = i + 1,
+                _ => {}
+            }
+        }
+        stack.into_iter().filter(|p| p.starts_with('@')).collect()
+    }
+
+    /// Every page file and the base template, by name: the pages whose head the tests hold to
+    /// the same stylesheet, icon and font links.
+    fn head_pages() -> [(&'static str, &'static str); 12] {
+        [
+            ("web/index.html", INDEX),
+            ("web/404.html", NOT_FOUND),
+            ("web/cookies.html", COOKIES),
+            ("web/check.html", CHECK),
+            ("web/status.html", STATUS),
+            ("web/terms.html", TERMS),
+            ("web/privacy.html", PRIVACY),
+            ("web/abuse.html", ABUSE),
+            ("web/transparency.html", TRANSPARENCY),
+            ("web/help.html", HELP),
+            ("web/security.html", SECURITY),
+            (
+                "templates/base.html",
+                include_str!("../templates/base.html"),
+            ),
+        ]
+    }
+
+    /// The stylesheet's last block: everything that moves lives in it, so one rule decides
+    /// who sees motion, and nobody who has asked for less does.
+    const MOTION_BLOCK: &str = "@media (prefers-reduced-motion: no-preference) {";
+
+    #[test]
+    fn the_stylesheet_names_only_this_sites_three_font_files_by_their_fingerprints() {
+        for (path, bytes) in [
+            (GEIST_PATH, GEIST),
+            (BODONI_PATH, BODONI),
+            (BODONI_ITALIC_PATH, BODONI_ITALIC),
+        ] {
+            let expected = format!("url(\"{path}?v={:016x}\")", fingerprint_bytes(bytes));
+            assert!(
+                SITE_CSS.contains(&expected),
+                "a font changed or is missing: set its url in site.css to {expected}"
+            );
+        }
+        let urls = css_urls(&without_comments(SITE_CSS));
+        assert_eq!(urls.len(), 3, "only the three fonts are named: {urls:?}");
+        for url in urls {
+            let path = url.split('?').next().unwrap();
+            assert_eq!(get(path).status, 200, "{url}");
+        }
+        assert!(!SITE_CSS.contains("data:"), "no data address");
+    }
+
+    /// The preload line for a font file, by its address and fingerprint.
+    fn preload(path: &str, bytes: &[u8]) -> String {
+        format!(
+            "<link rel=\"preload\" href=\"{path}?v={:016x}\" as=\"font\" type=\"font/woff2\" crossorigin>",
+            fingerprint_bytes(bytes)
+        )
+    }
+
+    #[test]
+    fn every_page_preloads_the_fonts_its_first_screen_uses_by_their_fingerprints() {
+        // Without it the text is drawn in a stand-in font first and then swapped, which moves
+        // the page. The address is the stylesheet's, so the browser fetches the file once.
+        // Every page's first screen has text (Geist) and a heading and the name (Bodoni Moda).
+        for (name, html) in head_pages() {
+            for tag in [preload(GEIST_PATH, GEIST), preload(BODONI_PATH, BODONI)] {
+                assert!(html.contains(&tag), "{name} lacks {tag}");
+            }
+        }
+        // Only the front page's first screen has an italic word, so only it fetches the italic
+        // early; elsewhere it comes when a page uses it, if ever.
+        let italic = preload(BODONI_ITALIC_PATH, BODONI_ITALIC);
+        for (name, html) in head_pages() {
+            let want = name == "web/index.html";
+            assert_eq!(html.contains(&italic), want, "{name}: the italic preload");
+        }
+    }
+
+    #[test]
+    fn everything_that_moves_sits_in_one_last_block_behind_no_motion_preference() {
+        let css = without_comments(SITE_CSS);
+        assert_eq!(
+            css.matches(MOTION_BLOCK).count(),
+            1,
+            "one block, not several"
+        );
+        let at = css.find(MOTION_BLOCK).unwrap();
+        let (calm, moving) = css.split_at(at);
+        // It runs to the end of the file: its braces close exactly at the last one.
+        let mut depth = 0i32;
+        for (i, c) in moving.char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        assert_eq!(moving[i + 1..].trim(), "", "nothing follows the block");
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(depth, 0, "the block's braces balance");
+        for word in [
+            "animation",
+            "transition",
+            "@keyframes",
+            "scroll-behavior",
+            "view-transition",
+            "will-change",
+        ] {
+            assert!(!calm.contains(word), "{word} outside the motion block");
+        }
+        assert!(moving.contains("@keyframes"), "the block holds the motion");
+    }
+
+    #[test]
+    fn scroll_driven_rules_sit_behind_a_support_check_so_other_browsers_get_a_still_page() {
+        let css = without_comments(SITE_CSS);
+        let mut found = 0;
+        for (at, _) in css.match_indices("animation-timeline") {
+            // The support check names the property in its condition; that is not a use.
+            if css[..at].trim_end().ends_with('(') {
+                continue;
+            }
+            found += 1;
+            let around = enclosing_at_rules(&css, at);
+            assert!(
+                around
+                    .iter()
+                    .any(|p| p.starts_with("@supports") && p.contains("animation-timeline")),
+                "animation-timeline at byte {at} is not inside @supports (animation-timeline: ...): {around:?}"
+            );
+        }
+        assert!(found > 0, "the redesign uses scroll-driven animation");
+    }
+
+    /// The top-level items of a comma-separated CSS value (commas inside brackets stay).
+    fn css_list(value: &str) -> Vec<String> {
+        let mut items = vec![String::new()];
+        let mut depth = 0i32;
+        for c in value.chars() {
+            match c {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                ',' if depth == 0 => {
+                    items.push(String::new());
+                    continue;
+                }
+                _ => {}
+            }
+            items.last_mut().unwrap().push(c);
+        }
+        items
+            .into_iter()
+            .map(|item| item.trim().to_string())
+            .collect()
+    }
+
+    /// The declarations (`name: value`) inside the block that opens at `css[open]`.
+    fn block_body(css: &str, open: usize) -> &str {
+        let mut depth = 0i32;
+        for (i, c) in css[open..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &css[open + 1..open + i];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("an unclosed block at byte {open}");
+    }
+
+    /// The properties that may move: the compositor draws them without laying out or
+    /// repainting the page (decision 028).
+    const MAY_MOVE: [&str; 5] = ["transform", "opacity", "translate", "scale", "rotate"];
+
+    #[test]
+    fn everything_that_moves_animates_only_transform_and_opacity() {
+        let css = without_comments(SITE_CSS);
+        let moving = &css[css.find(MOTION_BLOCK).unwrap()..];
+        // Every keyframe sets only those.
+        let mut frames = 0;
+        for (at, _) in moving.match_indices("@keyframes") {
+            frames += 1;
+            let open = at + moving[at..].find('{').unwrap();
+            for step in block_body(moving, open).split('}') {
+                let Some((_, body)) = step.split_once('{') else {
+                    continue;
+                };
+                for declaration in body.split(';').filter(|d| !d.trim().is_empty()) {
+                    let name = declaration.split(':').next().unwrap().trim();
+                    assert!(
+                        MAY_MOVE.contains(&name),
+                        "a keyframe animates {name}: {}",
+                        &moving[at..open]
+                    );
+                }
+            }
+        }
+        assert!(frames > 0, "the page has its motion");
+        // Every transition names only those (and, for the menu's popover, the two discrete
+        // steps that let it fade out before it leaves the top layer).
+        for (at, _) in moving.match_indices("transition") {
+            // A declaration, not `@view-transition` or `view-transition-name`.
+            let before = moving[..at].trim_end();
+            if !(before.ends_with('{') || before.ends_with(';')) {
+                continue;
+            }
+            let rest = &moving[at..];
+            let Some((name, value)) = rest.split(';').next().unwrap().split_once(':') else {
+                continue;
+            };
+            let name = name.trim();
+            if name.starts_with("transition-") && name != "transition-property" {
+                continue; // a delay, a duration or a timing function
+            }
+            for item in css_list(value) {
+                let property = item.split_whitespace().next().unwrap_or("");
+                assert!(
+                    MAY_MOVE.contains(&property)
+                        || property == "none"
+                        || (["display", "overlay"].contains(&property)
+                            && item.contains("allow-discrete")),
+                    "a transition of {property}: {item}"
+                );
+            }
+        }
+        // Nothing moves forever, so nothing needs a control to stop it (WCAG 2.2.2).
+        assert!(!css.contains("infinite"), "an endless animation");
+    }
+
+    #[test]
+    fn the_header_hides_on_the_way_down_only_where_the_browser_can_tell_and_motion_is_welcome() {
+        let css = without_comments(SITE_CSS);
+        let at = css
+            .find("@container scroll-state(scrolled: bottom)")
+            .expect("the header steps aside while the page scrolls down");
+        assert!(
+            at > css.find(MOTION_BLOCK).unwrap(),
+            "inside the motion block: nobody who asked for less sees the header move"
+        );
+        let around = enclosing_at_rules(&css, at);
+        assert!(
+            around
+                .iter()
+                .any(|p| p.starts_with("@supports") && p.contains("scroll-state")),
+            "where the browser cannot tell the direction, the header simply stays: {around:?}"
+        );
+        // It never hides while its menu is open or a key has moved into it.
+        let rule = block_body(&css, at + css[at..].find('{').unwrap());
+        assert!(rule.contains(":popover-open"), "{rule}");
+        assert!(rule.contains(":focus-within"), "{rule}");
+    }
+
+    #[test]
+    fn every_text_colour_reads_on_every_surface_it_sits_on_in_both_themes() {
+        let ratio = |a: [u8; 3], b: [u8; 3]| {
+            let (hi, lo) = if luminance(a) > luminance(b) {
+                (a, b)
+            } else {
+                (b, a)
+            };
+            (luminance(hi) + 0.05) / (luminance(lo) + 0.05)
+        };
+        for (scheme, block) in token_blocks(SITE_CSS) {
+            // WCAG 1.4.3: 4.5 to 1 for text.
+            for (ink, ground) in [
+                ("--text", "--bg"),
+                ("--text", "--surface"),
+                ("--muted", "--bg"),
+                ("--muted", "--surface"),
+                ("--accent-ink", "--bg"),
+                ("--accent-ink", "--surface"),
+                ("--on-accent", "--accent"),
+                ("--unknown", "--bg"),
+                ("--unknown", "--surface"),
+                ("--ok", "--bg"),
+                ("--bad", "--bg"),
+                ("--bad", "--surface"),
+            ] {
+                let r = ratio(token(block, ink), token(block, ground));
+                assert!(
+                    r >= 4.5,
+                    "{scheme}: {ink} on {ground} is {r:.2}:1, under 4.5:1"
+                );
+            }
+            // WCAG 1.4.11: 3 to 1 for the edge of a control.
+            for ground in ["--bg", "--surface"] {
+                let r = ratio(token(block, "--field"), token(block, ground));
+                assert!(r >= 3.0, "{scheme}: --field on {ground} is {r:.2}:1");
+            }
+        }
+    }
+
     #[test]
     fn the_edge_of_every_form_field_stands_out_from_its_background() {
         // WCAG 1.4.11: a control's boundary needs 3 to 1 against what is next to it.
@@ -965,14 +1371,18 @@ mod tests {
             css.contains("input.code-input:focus"),
             "the field lights up while typing"
         );
-        let calm = css
-            .split("@media (prefers-reduced-motion: reduce)")
-            .skip(1)
-            .map(|block| block.split("} }").next().unwrap_or(""));
+        // Nothing about it is animated outside the stylesheet's motion block, which is behind
+        // "no motion preference". (Hairline faded its border there; the editorial direction
+        // animates only transform and opacity, so the border now simply changes.)
+        let plain = without_comments(css);
+        let (calm, moving) = plain.split_at(plain.find(MOTION_BLOCK).expect("a motion block"));
         assert!(
-            calm.into_iter()
-                .any(|rule| rule.contains("input.code-input") && rule.contains("transition: none")),
-            "the field's transition stops for anyone who asks for less motion"
+            !calm.contains("transition"),
+            "no transition outside the block"
+        );
+        assert!(
+            !moving.contains("input.code-input"),
+            "the field's border is not animated"
         );
 
         // It is still one input, so pasting, an SMS autofill and a screen reader all work,
@@ -997,14 +1407,19 @@ mod tests {
         assert!(!template.contains("<script"));
     }
 
-    /// FNV-1a, 64 bits: a short fingerprint of the stylesheet's text.
-    fn fingerprint(text: &str) -> u64 {
+    /// FNV-1a, 64 bits: a short fingerprint of a file's bytes.
+    fn fingerprint_bytes(bytes: &[u8]) -> u64 {
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        for byte in text.bytes() {
-            hash ^= u64::from(byte);
+        for byte in bytes {
+            hash ^= u64::from(*byte);
             hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
         }
         hash
+    }
+
+    /// The same, of the stylesheet's or the icon's text.
+    fn fingerprint(text: &str) -> u64 {
+        fingerprint_bytes(text.as_bytes())
     }
 
     #[test]
@@ -1038,11 +1453,11 @@ mod tests {
                 )),
                 "favicon.svg changed: set the icon link in {name} to {expected}"
             );
+            // The header's mark is the same drawing, written into the page so it takes the
+            // theme's colours and can move; the tab icon is still the file.
             assert!(
-                html.contains(&format!(
-                    "<img src=\"{expected}\" width=\"26\" height=\"26\" alt=\"\">"
-                )),
-                "set the header icon in {name} to {expected}"
+                html.contains("<svg class=\"mark\""),
+                "{name}: the header carries the mark"
             );
             assert!(
                 !html.contains("\"/favicon.svg\""),
@@ -1197,6 +1612,110 @@ mod tests {
         assert!(icon.body.starts_with("<svg"));
     }
 
+    /// The three font files and where they live: Geist (Latin, variable weight) for text and
+    /// labels, and Bodoni Moda (Latin, variable weight and optical size) upright and italic
+    /// for the headings (`research/redesign-editorial/RESEARCH.md`).
+    const FONT_PATHS: [&str; 3] = [
+        "/assets/fonts/geist-latin-wght-normal.woff2",
+        "/assets/fonts/bodoni-moda-latin-normal.woff2",
+        "/assets/fonts/bodoni-moda-latin-italic.woff2",
+    ];
+
+    #[test]
+    fn the_three_font_files_are_served_as_woff2_and_cached_for_a_year() {
+        for path in FONT_PATHS {
+            let font = get(path);
+            assert_eq!(font.status, 200, "{path}");
+            assert_eq!(font.content_type, "font/woff2", "{path}");
+            // The stylesheet names each file with its fingerprint (`?v=`), so a changed font is
+            // a new address and the old one may be kept for good.
+            assert_eq!(
+                font.cache_control, "public, max-age=31536000, immutable",
+                "{path}"
+            );
+            let bytes = font.bytes.unwrap_or_else(|| panic!("{path} has no bytes"));
+            // Each address serves its own file: the sans, the serif and the serif's italic.
+            let own = match path {
+                p if p == FONT_PATHS[0] => GEIST,
+                p if p == FONT_PATHS[1] => BODONI,
+                _ => BODONI_ITALIC,
+            };
+            assert_eq!(bytes, own, "{path} serves the wrong file");
+            assert!(bytes.starts_with(b"wOF2"), "{path} is not a WOFF2 file");
+            assert!(
+                (10_000..60_000).contains(&bytes.len()),
+                "{path} is {} bytes: a Latin subset is a few tens of KB",
+                bytes.len()
+            );
+            assert_eq!(font.body, "", "{path}: a file of bytes has no text body");
+        }
+    }
+
+    #[test]
+    fn the_fonts_licence_is_served_beside_them() {
+        let licence = get("/assets/fonts/OFL.txt");
+        assert_eq!((licence.status, licence.content_type), (200, TEXT));
+        assert!(licence.body.contains("SIL OPEN FONT LICENSE Version 1.1"));
+        assert!(licence.body.contains("The Geist Project Authors"));
+        assert!(
+            licence.body.contains("The Bodoni Moda Project Authors"),
+            "every font served is named in its licence"
+        );
+        assert!(licence.bytes.is_none(), "the licence is text");
+    }
+
+    #[test]
+    fn a_font_answers_head_and_refuses_other_methods_and_no_other_font_path_exists() {
+        for path in FONT_PATHS {
+            assert_eq!(page(&Method::HEAD, path).status, 200, "{path}");
+            let refused = page(&Method::POST, path);
+            assert_eq!(
+                (refused.status, refused.allow),
+                (405, Some("GET, HEAD")),
+                "{path}"
+            );
+            assert!(refused.bytes.is_none(), "{path}: a refusal carries no font");
+        }
+        for path in [
+            "/assets/fonts",
+            "/assets/fonts/",
+            "/assets/fonts/other.woff2",
+            "/assets/fonts/geist-latin-wght-normal.woff2/",
+            // Geist Mono was served by the first redesign; the labels are Geist now.
+            "/assets/fonts/geist-mono-latin-wght-normal.woff2",
+            "/assets/fonts/GEIST-LATIN-WGHT-NORMAL.WOFF2",
+            "/assets/fonts/../site.css",
+            "/assets/fonts/%2e%2e/site.css",
+        ] {
+            assert_eq!(get(path).status, 404, "{path:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_font_goes_out_with_its_own_bytes_and_every_security_header() {
+        for path in FONT_PATHS {
+            let request = Request::builder().uri(path).body(Body::empty()).unwrap();
+            let response = handle(
+                State(Site {
+                    app: None,
+                    live: None,
+                }),
+                request,
+            )
+            .await;
+            let headers = response.headers().clone();
+            assert_eq!(headers["content-type"], "font/woff2", "{path}");
+            assert_eq!(headers["x-content-type-options"], "nosniff");
+            assert_eq!(headers["cross-origin-resource-policy"], "same-origin");
+            let policy = headers["content-security-policy"].to_str().unwrap();
+            assert!(policy.contains("font-src 'self'"), "{policy}");
+            let sent = axum::body::to_bytes(response.into_body(), 1 << 20)
+                .await
+                .unwrap();
+            assert_eq!(sent.as_ref(), get(path).bytes.unwrap(), "{path}");
+        }
+    }
+
     #[test]
     fn health_and_robots_are_plain_text() {
         let health = get("/healthz");
@@ -1248,7 +1767,14 @@ mod tests {
 
     #[test]
     fn every_response_carries_the_security_headers() {
-        for path in ["/", "/assets/site.css", "/favicon.svg", "/healthz", "/nope"] {
+        for path in [
+            "/",
+            "/assets/site.css",
+            "/favicon.svg",
+            FONT_PATHS[0],
+            "/healthz",
+            "/nope",
+        ] {
             let response = secured(&get(path));
             let header = |name: &str| {
                 response
@@ -1568,6 +2094,41 @@ mod tests {
     }
 
     #[test]
+    fn the_servers_section_draws_a_map_above_the_list_when_the_servers_have_coordinates() {
+        let mut toronto = view("toronto", "Toronto", "Canada", Health::Online);
+        toronto.location = crate::closest::Location::new(43.65, -79.38);
+        let mut dallas = view("dallas", "Dallas", "United States", Health::NotResponding);
+        dallas.location = crate::closest::Location::new(32.78, -96.80);
+        let page = front_page(&snapshot(vec![toronto, dallas]));
+        let section = cards(&page);
+
+        let map = section
+            .find("<figure class=\"board\"><svg class=\"graticule\"")
+            .unwrap_or_else(|| panic!("no map: {section}"));
+        let list = section.find("<ul class=\"nodes\">").unwrap();
+        assert!(map < list, "the map comes first: {section}");
+        assert!(section.contains("class=\"pt up\""), "{section}");
+        assert!(section.contains("class=\"pt down\""), "{section}");
+        // The list is as it was: one card a server, in words.
+        assert_eq!(section.matches("<li>").count(), 2, "{section}");
+        assert!(section.contains("<span class=\"state up\">Up</span>"));
+        // The page outside the section is the file as it is.
+        assert!(page.starts_with(INDEX.split(NODES_START).next().unwrap()));
+    }
+
+    #[test]
+    fn without_coordinates_the_servers_section_is_the_list_alone() {
+        let page = front_page(&snapshot(vec![view(
+            "toronto",
+            "Toronto",
+            "Canada",
+            Health::Online,
+        )]));
+        assert!(!cards(&page).contains("<svg"), "{}", cards(&page));
+        assert!(cards(&page).contains("<ul class=\"nodes\">"));
+    }
+
+    #[test]
     fn a_busy_server_reads_overloaded_on_the_front_page_by_the_same_numbers_as_the_status_page() {
         let busy_node = status_page::agent("Toronto", "Canada", Health::Online, 5, None);
         let nodes = || snapshot(vec![busy_node.clone()]);
@@ -1706,13 +2267,24 @@ mod tests {
         ] {
             assert!(!open.contains(gone), "{gone:?} on an open site");
         }
-        assert!(
-            open.contains("<a class=\"button\" href=\"/signin\">Sign up or sign in</a>"),
-            "the button leads in"
+        // The menu, the hero and the closing line each lead in: three buttons, so a change to the
+        // hero's wording cannot hide behind the menu's own "Get started".
+        assert_eq!(
+            open.matches("<a class=\"button\" href=\"/signin\">Get started</a>")
+                .count(),
+            3,
+            "the menu, the hero and the closing line lead in"
+        );
+        assert_eq!(
+            INDEX
+                .matches("<a class=\"button\" href=\"/signin\">Sign in</a>")
+                .count(),
+            2,
+            "until sign-up opens the hero and the closing line say Sign in"
         );
         assert!(open.contains("sign-up is open"), "the badge says so");
         assert!(
-            open.contains("<p class=\"badge\">Full release &middot; sign-up is open</p>"),
+            open.contains("<p class=\"badge open\">Full release &middot; sign-up is open</p>"),
             "the badge says it is a full release"
         );
         assert!(
@@ -1736,9 +2308,10 @@ mod tests {
         );
     }
 
-    /// The front page's answer (headers and body) on a site with sign-in, for a browser that
+    /// The answer (headers and body) for `path` on a site with sign-in, for a browser that
     /// sends `cookie` (the session cookie's value), where `session` is a live one at time 1000.
-    async fn front_page_with_cookie(
+    async fn page_with_cookie(
+        path: &str,
         open: bool,
         cookie: impl Fn(&str) -> Option<String>,
     ) -> (axum::http::HeaderMap, String) {
@@ -1758,7 +2331,7 @@ mod tests {
             vec!["https://barely-free.com".to_string()],
             Arc::new(|| 1_000),
         );
-        let mut request = Request::builder().uri("/");
+        let mut request = Request::builder().uri(path);
         if let Some(value) = cookie(&session.cookie) {
             request = request.header("cookie", format!("a=b; __Host-bf_session={value}"));
         }
@@ -1782,7 +2355,7 @@ mod tests {
     async fn a_signed_in_visitor_sees_your_account_where_the_sign_in_button_was() {
         let your_account = "<a class=\"button\" href=\"/account\">Your account</a>";
         for open in [false, true] {
-            let (headers, html) = front_page_with_cookie(open, |live| Some(live.to_string())).await;
+            let (headers, html) = page_with_cookie("/", open, |live| Some(live.to_string())).await;
 
             assert!(html.contains(your_account), "open {open}: {html}");
             assert!(!html.contains("href=\"/signin\""), "open {open}");
@@ -1806,9 +2379,41 @@ mod tests {
             ("wrong secret", &wrong_secret),
             ("junk", &junk),
         ] {
-            let (headers, html) = front_page_with_cookie(false, cookie).await;
+            let (headers, html) = page_with_cookie("/", false, cookie).await;
             assert_eq!(html, INDEX, "{name}");
             assert_eq!(headers.get("vary").unwrap(), "Cookie", "{name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_get_started_button_in_the_menu_is_for_visitors_who_are_not_signed_in() {
+        let button = "<a class=\"button\" href=\"/signin\">Get started</a>";
+        let account = "<a href=\"/account\">Account</a>";
+        let paths = [
+            "/",
+            "/terms",
+            "/privacy",
+            "/abuse",
+            "/transparency",
+            "/security",
+            "/help",
+            "/cookies",
+            "/check",
+            "/status",
+        ];
+        for path in paths {
+            // Signed out: the way in is there, and so is the account link (it leads to sign-in).
+            let (_, html) = page_with_cookie(path, true, |_| None).await;
+            assert!(html.contains(button), "{path}: signed out");
+            assert!(html.contains(account), "{path}: signed out");
+            // Signed in: nothing to get started on, and the account link stays.
+            let (headers, html) = page_with_cookie(path, true, |live| Some(live.to_string())).await;
+            assert!(
+                !html.contains(button),
+                "{path}: signed in still has the button"
+            );
+            assert!(html.contains(account), "{path}: signed in");
+            assert_eq!(headers.get("vary").unwrap(), "Cookie", "{path}");
         }
     }
 
@@ -1996,8 +2601,25 @@ mod tests {
         ] {
             assert!(POLICY.contains(kept), "{kept}");
         }
-        assert!(!POLICY.contains("script-src"));
-        assert!(!POLICY.contains("unsafe"));
+        // The redesign adds one thing: fonts from this site's own files. Pinned whole, so an
+        // allowance added by accident fails here.
+        assert_eq!(
+            POLICY,
+            "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; \
+             base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        );
+        for never in [
+            "script-src",
+            "connect-src",
+            "object-src",
+            "frame-src",
+            "worker-src",
+            "unsafe",
+            "data:",
+            "http",
+        ] {
+            assert!(!POLICY.contains(never), "{never}: {POLICY}");
+        }
         assert_eq!(
             POLICY, APP_POLICY,
             "the public and app pages now differ in nothing"
@@ -2524,21 +3146,25 @@ mod tests {
         };
 
         for method in ["GET", "POST", "HEAD"] {
-            let nothing = asks(method, "/nothing-here", None);
-            assert!(nothing.starts_with("HTTP/1.1 404"), "{nothing}");
-            for path in [
-                "/admin",
-                "/admin/unlock",
-                "/admin/lock",
-                "/admin/accounts",
-                "/admin/devices",
-                "/admin/devices/remove",
-                "/admin/kicks",
-                "/admin/kicks/lift",
-                "/admin/",
-                "/admin/anything",
-            ] {
-                for who in [None, Some("__Host-bf_session=junk"), Some(cookie.as_str())] {
+            for who in [None, Some("__Host-bf_session=junk"), Some(cookie.as_str())] {
+                // What this visitor gets for a path that does not exist. A signed-in visitor is
+                // not offered "Get started" in the menu, so the comparison is with the same
+                // visitor's own 404: an admin path must look like any other unknown path to
+                // whoever asks.
+                let nothing = asks(method, "/nothing-here", who);
+                assert!(nothing.starts_with("HTTP/1.1 404"), "{nothing}");
+                for path in [
+                    "/admin",
+                    "/admin/unlock",
+                    "/admin/lock",
+                    "/admin/accounts",
+                    "/admin/devices",
+                    "/admin/devices/remove",
+                    "/admin/kicks",
+                    "/admin/kicks/lift",
+                    "/admin/",
+                    "/admin/anything",
+                ] {
                     assert_eq!(
                         asks(method, path, who),
                         nothing,
@@ -2556,7 +3182,8 @@ mod tests {
         let admin = Some(admin_cookie.as_str());
         let front = asks("GET", "/", None);
         assert!(front.starts_with("HTTP/1.1 200"), "{front}");
-        // Signed in, the front page's button says "Your account"; nothing else differs.
+        // Signed in, the front page's button says "Your account" and the menu has no "Get
+        // started"; nothing else differs.
         let without_length = |answer: &str| {
             answer
                 .lines()
@@ -2568,11 +3195,11 @@ mod tests {
         assert!(admin_front.contains(ACCOUNT_LINK), "{admin_front}");
         assert_eq!(
             without_length(&admin_front.replace(ACCOUNT_LINK, SIGN_IN_LINK)),
-            without_length(&front),
+            without_length(&front.replacen(HEADER_CTA, "", 1)),
             "the front page, not an admin page"
         );
         for method in ["GET", "POST", "HEAD"] {
-            let nothing = asks(method, "/nothing-here", None);
+            let nothing = asks(method, "/nothing-here", admin);
             for path in [
                 "/admin/",
                 "/admin/anything",
@@ -2619,6 +3246,58 @@ mod tests {
 
         let _ = stop.send(());
         server.join().unwrap();
+    }
+
+    #[test]
+    fn a_font_crosses_a_real_socket_byte_for_byte_with_its_length_and_headers() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (stop, stopped) = oneshot::channel::<()>();
+        let server = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async move {
+                let listener = TcpListener::from_std(listener).unwrap();
+                serve(listener, async {
+                    let _ = stopped.await;
+                })
+                .await
+                .unwrap();
+            });
+        });
+        let mut stream = TcpStream::connect(addr).unwrap();
+        stream
+            .write_all(
+                format!("GET {GEIST_PATH}?v=x HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
+            .unwrap();
+        let mut answer = Vec::new();
+        stream.read_to_end(&mut answer).unwrap();
+        let _ = stop.send(());
+        server.join().unwrap();
+
+        let split = answer
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .expect("the end of the headers");
+        let head = String::from_utf8_lossy(&answer[..split]).to_lowercase();
+        let body = &answer[split + 4..];
+        assert!(head.starts_with("http/1.1 200"), "{head}");
+        assert!(head.contains("content-type: font/woff2"), "{head}");
+        assert!(
+            head.contains("cache-control: public, max-age=31536000, immutable"),
+            "{head}"
+        );
+        assert!(
+            head.contains(&format!("content-length: {}", GEIST.len())),
+            "{head}"
+        );
+        assert!(head.contains("font-src 'self'"), "{head}");
+        assert_eq!(body, GEIST, "the bytes are the file's, untouched");
     }
 
     #[test]

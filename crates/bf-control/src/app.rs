@@ -1511,8 +1511,8 @@ mod tests {
 
     const T0: u64 = 20_000 * 86_400 + 1_000;
     const ORIGIN: &str = "https://barely-free.com";
-    const APP_POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; \
-                              form-action 'self'; frame-ancestors 'none'";
+    const APP_POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; \
+                              base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
     fn keys() -> ControlKeys {
         ControlKeys::from_parts([1; 32], [2; 32])
@@ -4177,7 +4177,7 @@ mod tests {
         assert!(r.body.contains("AmneziaWG app"), "{}", r.body);
         // Amnezia documents importing the file: it comes before the QR code.
         let file = r.body.find("download=\"bf-phone.conf\"").unwrap();
-        let qr = r.body.find("<svg").unwrap();
+        let qr = r.body.find("<div class=\"qr\"").unwrap();
         assert!(file < qr, "the file first for AmneziaWG");
     }
 
@@ -4673,7 +4673,8 @@ mod tests {
         assert!(body.contains("AllowedIPs = 0.0.0.0/0, ::/0"), "{body}");
         assert!(body.contains("Toronto, Canada"), "{body}");
         assert!(body.contains("AmneziaWG app"), "{body}");
-        assert_eq!(body.matches("<svg").count(), 1, "one QR code");
+        // (The header's mark is a drawing too, so the code is counted by its own box.)
+        assert_eq!(body.matches("<div class=\"qr\"").count(), 1, "one QR code");
         assert!(
             !body.contains("style="),
             "nothing the page's policy would block"

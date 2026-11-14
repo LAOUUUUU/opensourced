@@ -2,7 +2,7 @@
 //! one word, worked out here and nowhere else, so the two never disagree
 //! (`specs/status-page.md`).
 
-use crate::closest::{Busy, Candidate};
+use crate::closest::{Busy, Candidate, Location};
 use crate::poller::{Health, NodeView, Snapshot};
 use crate::web::escape_html;
 
@@ -17,10 +17,13 @@ pub enum State {
 }
 
 /// One server as the public sees it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Server {
     pub title: String,
     pub place: String,
+    /// Where it is, as the registry holds it (`node set-location`): the city, not the machine.
+    /// Only the map uses it, and only to place the point.
+    pub at: Option<Location>,
     pub state: State,
     /// Lines under the server about an app that is not like the rest ("AmneziaWG is not
     /// responding.").
@@ -82,6 +85,7 @@ pub fn servers(snapshot: &Snapshot, busy: &Busy) -> Vec<Server> {
             Server {
                 title: title.to_string(),
                 place: place.to_string(),
+                at: agents.iter().find_map(|node| node.location),
                 state,
                 notes: notes_of(&agents),
                 load: (working && has_reading).then(|| load_percent(&together, busy)),
@@ -96,6 +100,120 @@ pub fn servers(snapshot: &Snapshot, busy: &Busy) -> Vec<Server> {
             }
         })
         .collect()
+}
+
+/// The map's frame, in the picture's own units.
+const MAP_W: f64 = 640.0;
+const MAP_H: f64 = 360.0;
+/// A name goes to the left of its point when the point is this far across the frame.
+const MAP_FLIP: f64 = 0.72;
+/// The spacings, in degrees, a grid line may have.
+const GRID_STEPS: [f64; 10] = [1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0];
+
+/// A picture of where the servers are: a grid of whole degrees and one point for each server
+/// that has coordinates, coloured by its state (the words are in the list beside it, so the
+/// picture says nothing the list does not). Centred on the servers and drawn at a scale that
+/// leaves room for their names. `None` when no server has coordinates, so a site that has not
+/// set them shows the list alone.
+pub fn map(servers: &[Server]) -> Option<String> {
+    let placed: Vec<(&Server, Location)> = servers
+        .iter()
+        .filter_map(|server| server.at.map(|at| (server, at)))
+        .collect();
+    if placed.is_empty() {
+        return None;
+    }
+    let lats = placed.iter().map(|(_, at)| at.lat);
+    let lons = placed.iter().map(|(_, at)| at.lon);
+    let (lat_lo, lat_hi) = (
+        lats.clone().fold(f64::INFINITY, f64::min),
+        lats.fold(f64::NEG_INFINITY, f64::max),
+    );
+    let (lon_lo, lon_hi) = (
+        lons.clone().fold(f64::INFINITY, f64::min),
+        lons.fold(f64::NEG_INFINITY, f64::max),
+    );
+    let (lat_c, lon_c) = ((lat_lo + lat_hi) / 2.0, (lon_lo + lon_hi) / 2.0);
+    // A degree of longitude is shorter the further from the equator.
+    let squeeze = lat_c.to_radians().cos().max(0.05);
+    let across = ((lon_hi - lon_lo) * squeeze).max(4.0);
+    let down = (lat_hi - lat_lo).max(4.0);
+    // Units of the picture to a degree of latitude: the servers fill a bit over half of it.
+    let scale = 0.55 * (MAP_W / across).min(MAP_H / down);
+    let x = |lon: f64| MAP_W / 2.0 + (lon - lon_c) * squeeze * scale;
+    let y = |lat: f64| MAP_H / 2.0 - (lat - lat_c) * scale;
+
+    // The grid: the smallest spacing that leaves about four lines up the picture.
+    let seen_lat = (MAP_H / scale).min(180.0);
+    let step = GRID_STEPS
+        .iter()
+        .copied()
+        .find(|step| *step >= seen_lat / 4.0)
+        .unwrap_or(90.0);
+    let lat_from = (lat_c - MAP_H / 2.0 / scale).max(-90.0);
+    let lat_to = (lat_c + MAP_H / 2.0 / scale).min(90.0);
+    let lon_from = (lon_c - MAP_W / 2.0 / (squeeze * scale)).max(-180.0);
+    let lon_to = (lon_c + MAP_W / 2.0 / (squeeze * scale)).min(180.0);
+
+    let mut svg = format!(
+        "<svg class=\"graticule\" viewBox=\"0 0 {MAP_W} {MAP_H}\" aria-hidden=\"true\" focusable=\"false\">\n"
+    );
+    let mut line = (lat_from / step).ceil() * step;
+    while line <= lat_to {
+        let at = y(line);
+        svg.push_str(&format!(
+            "  <line class=\"grid\" x1=\"0\" y1=\"{at:.1}\" x2=\"{MAP_W}\" y2=\"{at:.1}\"/>\n  <text class=\"scale\" x=\"8\" y=\"{:.1}\">{}</text>\n",
+            at - 5.0,
+            degrees(line, 'N', 'S')
+        ));
+        line += step;
+    }
+    let mut line = (lon_from / step).ceil() * step;
+    while line <= lon_to {
+        let at = x(line);
+        svg.push_str(&format!(
+            "  <line class=\"grid\" x1=\"{at:.1}\" y1=\"0\" x2=\"{at:.1}\" y2=\"{MAP_H}\"/>\n  <text class=\"scale\" x=\"{:.1}\" y=\"{:.1}\">{}</text>\n",
+            at + 5.0,
+            MAP_H - 8.0,
+            degrees(line, 'E', 'W')
+        ));
+        line += step;
+    }
+    for (server, at) in &placed {
+        let (cx, cy) = (x(at.lon), y(at.lat));
+        let (_, state) = server.state.classes();
+        let class = |base: &str| match state.strip_prefix("state") {
+            Some(rest) if !rest.is_empty() => format!("{base}{rest}"),
+            _ => base.to_string(),
+        };
+        let (label_x, anchor) = if cx > MAP_W * MAP_FLIP {
+            (cx - 18.0, " text-anchor=\"end\"")
+        } else {
+            (cx + 18.0, "")
+        };
+        svg.push_str(&format!(
+            "  <g class=\"place\"><circle class=\"{}\" cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"12\"/><circle class=\"{}\" cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"5\"/><text class=\"city\" x=\"{label_x:.1}\" y=\"{:.1}\"{anchor}>{}</text></g>\n",
+            class("halo"),
+            class("pt"),
+            cy + 7.0,
+            escape_html(&server.title)
+        ));
+    }
+    svg.push_str("</svg>");
+    Some(svg)
+}
+
+/// "40°N", "90°W": whole degrees and the letter for the side of the equator or the meridian.
+fn degrees(value: f64, positive: char, negative: char) -> String {
+    if value == 0.0 {
+        "0\u{b0}".to_string()
+    } else {
+        format!(
+            "{}\u{b0}{}",
+            value.abs(),
+            if value > 0.0 { positive } else { negative }
+        )
+    }
 }
 
 /// The agents grouped into servers (the same title and place), in the order they first
@@ -240,7 +358,11 @@ pub fn answer(
     if servers.is_empty() {
         return "<p class=\"lead\">No servers are listed yet.</p>".to_string();
     }
-    let mut html = String::from("<ul class=\"nodes\">\n");
+    let mut html = String::new();
+    if let Some(svg) = map(&servers) {
+        html.push_str(&format!("<figure class=\"board\">{svg}</figure>\n  "));
+    }
+    html.push_str("<ul class=\"nodes\">\n");
     for server in &servers {
         html.push_str(&format!("    {}\n", card(server, true)));
     }
@@ -1083,6 +1205,7 @@ mod tests {
         let server = Server {
             title: "Toronto".into(),
             place: "Canada".into(),
+            at: None,
             state: State::Up,
             notes: Vec::new(),
             load: Some(30),
@@ -1213,6 +1336,7 @@ mod tests {
                 &Server {
                     title: "T".into(),
                     place: "P".into(),
+                    at: None,
                     state,
                     notes: Vec::new(),
                     load: None,
@@ -1331,5 +1455,201 @@ mod tests {
         let html = answer(&snapshot, &Busy::default(), 105, &[]);
         assert!(html.contains("No check has finished yet."), "{html}");
         assert!(html.contains("Status unknown"), "{html}");
+    }
+
+    // ---- the map: where the servers are ----
+
+    /// A server as the public sees it, at `at` (latitude, longitude) when it has one.
+    fn placed(title: &str, state: State, at: Option<(f64, f64)>) -> Server {
+        Server {
+            title: title.to_string(),
+            place: "Somewhere".to_string(),
+            state,
+            notes: Vec::new(),
+            load: None,
+            fixing_note: None,
+            at: at.and_then(|(lat, lon)| crate::closest::Location::new(lat, lon)),
+        }
+    }
+
+    const TORONTO: (f64, f64) = (43.65, -79.38);
+    const DALLAS: (f64, f64) = (32.78, -96.80);
+
+    /// The centre (x, y) drawn for `city`: the first `cx` and `cy` in its group.
+    fn point(svg: &str, city: &str) -> (f64, f64) {
+        let group = svg
+            .split("<g class=\"place\"")
+            .skip(1)
+            .find(|g| {
+                g.split("</g>")
+                    .next()
+                    .unwrap()
+                    .contains(&format!(">{city}</text>"))
+            })
+            .unwrap_or_else(|| panic!("no place for {city}: {svg}"));
+        let number = |name: &str| -> f64 {
+            group
+                .split(&format!("{name}=\""))
+                .nth(1)
+                .unwrap()
+                .split('"')
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap()
+        };
+        (number("cx"), number("cy"))
+    }
+
+    fn two() -> String {
+        map(&[
+            placed("Toronto", State::Up, Some(TORONTO)),
+            placed("Dallas", State::Up, Some(DALLAS)),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn the_map_puts_each_server_where_its_coordinates_say() {
+        let svg = two();
+        let (tx, ty) = point(&svg, "Toronto");
+        let (dx, dy) = point(&svg, "Dallas");
+        assert!(tx > dx + 50.0, "Toronto is east of Dallas: {tx} {dx}");
+        assert!(ty < dy - 30.0, "and north of it: {ty} {dy}");
+        for (x, y) in [(tx, ty), (dx, dy)] {
+            assert!(
+                (40.0..=600.0).contains(&x) && (40.0..=320.0).contains(&y),
+                "inside the frame with room for the name: {x} {y}"
+            );
+        }
+        assert!(
+            ((tx + dx) / 2.0 - 320.0).abs() < 1.0 && ((ty + dy) / 2.0 - 180.0).abs() < 1.0,
+            "the map is centred on the servers"
+        );
+    }
+
+    #[test]
+    fn the_map_draws_a_grid_of_whole_degrees_labelled_with_hemisphere_letters() {
+        let svg = two();
+        for label in ["40\u{b0}N", "35\u{b0}N", "90\u{b0}W", "80\u{b0}W"] {
+            assert!(svg.contains(&format!(">{label}</text>")), "{label}: {svg}");
+        }
+        for gone in [
+            "50\u{b0}N",
+            "25\u{b0}N",
+            "40\u{b0}S",
+            "90\u{b0}E",
+            "60\u{b0}W",
+        ] {
+            assert!(!svg.contains(&format!(">{gone}</text>")), "{gone}: {svg}");
+        }
+        let lines = svg.matches("<line class=\"grid\"").count();
+        assert!((6..=24).contains(&lines), "{lines} grid lines: {svg}");
+    }
+
+    #[test]
+    fn a_single_server_is_drawn_in_the_middle() {
+        let svg = map(&[placed("Toronto", State::Up, Some(TORONTO))]).unwrap();
+        let (x, y) = point(&svg, "Toronto");
+        assert!(
+            (x - 320.0).abs() < 1.0 && (y - 180.0).abs() < 1.0,
+            "{x} {y}"
+        );
+    }
+
+    #[test]
+    fn each_state_puts_its_own_class_on_the_point_and_its_ring() {
+        for (state, class) in [
+            (State::Up, "up"),
+            (State::Down, "down"),
+            (State::Overloaded, ""),
+            (State::BeingFixed, ""),
+            (State::Unknown, ""),
+        ] {
+            let svg = map(&[placed("A", state, Some(TORONTO))]).unwrap();
+            let with = |base: &str| {
+                if class.is_empty() {
+                    format!("class=\"{base}\"")
+                } else {
+                    format!("class=\"{base} {class}\"")
+                }
+            };
+            assert!(svg.contains(&with("pt")), "{state:?}: {svg}");
+            assert!(svg.contains(&with("halo")), "{state:?}: {svg}");
+            assert!(
+                !svg.contains(state.label()),
+                "the word is for the list: {svg}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_server_without_coordinates_is_left_off_and_with_none_there_is_no_map() {
+        assert!(map(&[]).is_none());
+        assert!(map(&[placed("A", State::Up, None)]).is_none());
+        let svg = map(&[
+            placed("A", State::Up, Some(TORONTO)),
+            placed("B", State::Up, None),
+        ])
+        .unwrap();
+        assert!(svg.contains(">A</text>"), "{svg}");
+        assert!(!svg.contains(">B</text>"), "{svg}");
+    }
+
+    #[test]
+    fn a_title_is_text_never_markup() {
+        let svg = map(&[placed(
+            "<script>alert(1)</script>",
+            State::Up,
+            Some(TORONTO),
+        )])
+        .unwrap();
+        assert!(!svg.contains("<script"), "{svg}");
+        assert!(svg.contains("&lt;script&gt;"), "{svg}");
+    }
+
+    #[test]
+    fn the_map_is_a_picture_that_says_nothing_the_list_does_not() {
+        let svg = two();
+        assert!(svg.starts_with("<svg class=\"graticule\""), "{svg}");
+        assert!(svg.contains("aria-hidden=\"true\""), "{svg}");
+        assert!(svg.contains("focusable=\"false\""), "{svg}");
+        for gone in ["load", "%", "192.0.2", "style=", "<script", "http"] {
+            assert!(!svg.contains(gone), "{gone}: {svg}");
+        }
+    }
+
+    #[test]
+    fn the_name_goes_on_the_left_of_a_point_near_the_right_edge() {
+        // Sydney is far east of Toronto: the pair spans the world, and the eastern one sits
+        // near the right edge, where a name to its right would run off the picture.
+        let svg = map(&[
+            placed("Toronto", State::Up, Some(TORONTO)),
+            placed("Sydney", State::Up, Some((-33.87, 151.21))),
+        ])
+        .unwrap();
+        let (x, _) = point(&svg, "Sydney");
+        assert!(x > 460.0, "{x}");
+        let group = svg
+            .split("<g class=\"place\"")
+            .find(|g| g.contains(">Sydney</text>"))
+            .unwrap();
+        assert!(group.contains("text-anchor=\"end\""), "{group}");
+    }
+
+    #[test]
+    fn a_server_takes_the_first_location_one_of_its_agents_has() {
+        let mut first = agent("Toronto", WG, Health::Online, 0, None);
+        let mut second = agent("Toronto", AWG, Health::Online, 0, None);
+        first.location = None;
+        second.location = crate::closest::Location::new(43.65, -79.38);
+        let found = servers(&board(vec![first, second]), &Busy::default());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].at, crate::closest::Location::new(43.65, -79.38));
+        let none = servers(
+            &board(vec![agent("Paris", WG, Health::Online, 0, None)]),
+            &Busy::default(),
+        );
+        assert_eq!(none[0].at, None);
     }
 }

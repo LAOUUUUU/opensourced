@@ -64,6 +64,29 @@ async fn status_of(nodes: Vec<NodeView>) -> String {
     body
 }
 
+#[tokio::test]
+async fn the_status_page_draws_the_same_map_above_its_list_when_servers_have_coordinates() {
+    let mut toronto = agent("Toronto", "Canada", Health::Online, 0, Some(0.1));
+    toronto.location = crate::closest::Location::new(43.65, -79.38);
+    let body = status_of(vec![toronto]).await;
+    let map = body
+        .find("<figure class=\"board\"><svg class=\"graticule\"")
+        .unwrap_or_else(|| panic!("no map: {body}"));
+    let list = body.find("<ul class=\"nodes\">").unwrap();
+    assert!(map < list, "the map comes first");
+    assert!(body.contains("class=\"pt up\""), "{body}");
+    // With no coordinates there is no map, and the page is as it was.
+    let plain = status_of(vec![agent(
+        "Toronto",
+        "Canada",
+        Health::Online,
+        0,
+        Some(0.1),
+    )])
+    .await;
+    assert!(!plain.contains("<svg class=\"graticule\""), "{plain}");
+}
+
 #[test]
 fn the_status_page_is_never_cached_and_only_read() {
     let answer = get("/status");

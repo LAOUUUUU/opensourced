@@ -918,6 +918,43 @@ async fn the_account_page_links_to_the_admin_pages_only_for_an_admin() {
     assert!(!plain.body.contains("/admin"), "{}", plain.body);
 }
 
+#[tokio::test]
+async fn the_pages_for_someone_signed_in_have_no_get_started_button_in_the_menu() {
+    // "Get started" is for a visitor who is not in yet; on the account and admin pages the
+    // menu keeps the account link and drops the button.
+    let h = admin_harness();
+    let account = "<a href=\"/account\">Account</a>";
+    let signed_in = signed_in_admin(&h).await;
+    for path in ["/account", "/admin"] {
+        // `/admin` here is the password page, shown to an admin who has not unlocked yet.
+        let r = page(&h, &signed_in, path).await;
+        assert_eq!(r.status, 200, "{path}");
+        assert!(!r.body.contains("Get started"), "{path}: {}", r.body);
+        assert!(r.body.contains(account), "{path}");
+    }
+    let who = unlocked_admin(&h).await;
+    for path in [
+        "/admin",
+        "/admin/accounts",
+        "/admin/devices",
+        "/admin/kicks",
+    ] {
+        let r = page(&h, &who, path).await;
+        assert_eq!(r.status, 200, "{path}");
+        assert!(!r.body.contains("Get started"), "{path}: {}", r.body);
+        assert!(r.body.contains(account), "{path}");
+    }
+    // The sign-in page, for someone who is not in, still has it.
+    let signin = get(&h, "/signin", None).await;
+    assert!(
+        signin
+            .body
+            .contains("<a class=\"button\" href=\"/signin\">Get started</a>"),
+        "{}",
+        signin.body
+    );
+}
+
 #[test]
 fn a_time_on_an_admin_page_is_a_date_and_a_minute_in_utc() {
     assert_eq!(stamp(0), "1970-01-01 00:00 UTC");

@@ -6,6 +6,8 @@
 <title>Barely-free: a free VPN for anybody</title>
 <meta name="description" content="Barely-free is a free VPN built on WireGuard. Closed beta: sign-up is not open yet.">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0c0b0a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3eee4" media="(prefers-color-scheme: light)">
 <link rel="canonical" href="https://barely-free.com/">
 <meta property="og:site_name" content="Barely-free">
 <meta property="og:type" content="website">
@@ -14,51 +16,90 @@
 <meta property="og:url" content="https://barely-free.com/">
 <meta name="twitter:card" content="summary">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Barely-free","alternateName":["barely-free.com"],"url":"https://barely-free.com/"}</script>
-<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+<link rel="preload" href="/assets/fonts/geist-latin-wght-normal.woff2?v=685b571ab077456d" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/bodoni-moda-latin-normal.woff2?v=828c0396b259b29a" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/bodoni-moda-latin-italic.woff2?v=f58fb825e442ae45" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="/favicon.svg?v=f35d993ad7080db9" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=53f3f0da4717b066">
 </head>
 <body class="has-float">
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
-  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
-  <nav aria-label="Main">
+  <a class="brand" href="/"><svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="9.5"/><path d="M16 6.5a9.5 9.5 0 0 0 0 19z"/></svg>Barely-free</a>
+  <button class="menu-button" type="button" popovertarget="menu" aria-label="Menu"><span></span><span></span></button>
+  <nav id="menu" popover aria-label="Main">
+    <a href="/#why">Why</a>
     <a href="/#how">How it works</a>
     <a href="/#nodes">Servers</a>
-    <a href="/help">Help</a>
-    <a href="/account">Account</a>
+    <a href="/#privacy">Privacy</a>
+    <a href="/#faq">Questions</a>
+    <a class="extra" href="/help">Help</a>
     <a href="https://github.com/LAOUUUUU/opensourced" rel="noopener noreferrer">Source code</a>
+    <a href="/account">Account</a>
+    <a class="button" href="/signin">Get started</a>
   </nav>
 </header>
 
-<main id="main">
+<main id="main" class="home">
   <section class="hero">
-    <p class="badge">Closed beta &middot; sign-up is not open yet</p>
-    <h1>A VPN that is fast, and <em>free for anybody.</em></h1>
-    <p class="lead">Barely-free runs on WireGuard, so it stays out of your way. One key per device, the closest server to you, and no password to lose.</p>
-    <p class="actions">
-      <a class="button" href="/signin">Sign in</a>
-      <a class="textlink" href="#how">See how it works</a>
-    </p>
+    <svg class="hero-art" viewBox="0 0 1000 1000" aria-hidden="true" focusable="false"><path class="half" d="M500 1a499 499 0 0 0 0 998z"/><circle class="ring" cx="500" cy="500" r="499"/></svg>
+    <div class="hero-copy">
+      <p class="badge">Closed beta &middot; sign-up is not open yet</p>
+      <h1><span class="line"><span>Privacy,</span></span> <span class="line"><span>without the</span></span> <span class="line"><span><em>price.</em></span></span></h1>
+      <div class="hero-foot">
+        <p class="lead">A free VPN built on WireGuard. Sign in with an email code, scan a QR code, connect.</p>
+        <p class="actions"><a class="button" href="/signin">Sign in</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="why">
+    <h2 class="statement"><span class="glide">One person. Two <em>servers.</em></span></h2>
+    <div class="why-copy">
+      <p>Barely-free is a VPN anybody can use, run by one person and paid for by donations. It stays free whether or not anyone gives.</p>
+      <p>It is small on purpose: there is a limit on devices, a server can be full, and we say so up front.</p>
+    </div>
   </section>
 
   <section id="how">
     <h2>How it works</h2>
     <ol class="steps">
       <li><h3>Sign in with your email</h3><p>We send you a short code. There is no password to make up or forget.</p></li>
-      <li><h3>Get your key</h3><p>Add a device, then scan a QR code or download a file for the WireGuard app.</p></li>
+      <li><h3>Get your key</h3><p>Add a device, then scan a QR code or download a file for the app.</p></li>
       <li><h3>Connect</h3><p>You are sent to the closest server, unless it is busy.</p></li>
     </ol>
-  </section>
-
-  <section id="features">
-    <h2>Built for speed and quiet</h2>
-    <ul class="cards">
-      <li><h3>WireGuard</h3><p>The fast, modern VPN protocol, running inside each server's kernel so your traffic never waits on our code.</p></li>
-      <li><h3>Trackers blocked</h3><p>Known trackers are blocked by default, and you can switch that off per device. It does not block ads. Sites known to spread malware are always blocked.</p></li>
-      <li><h3>Closest server</h3><p>New devices are sent to the nearest server, and to another one when it is overloaded. You can also pick a server yourself.</p></li>
-      <li><h3>For stricter networks</h3><p>One extra option for networks that block ordinary VPNs. It is meant for light restrictions, not heavy ones.</p></li>
-    </ul>
+    <figure class="compare">
+      <h3>What changes when you connect</h3>
+      <input class="switch-input" type="checkbox" role="switch" id="vpn" checked>
+      <label class="switch" for="vpn"><span class="track" aria-hidden="true"><span class="thumb"></span></span><span class="switch-words" aria-hidden="true"><span class="off">VPN off</span><span class="on">VPN on</span></span><span class="sr">VPN</span></label>
+      <svg class="diagram" viewBox="0 0 560 170" aria-hidden="true" focusable="false">
+        <g class="node"><rect x="48" y="70" width="44" height="68" rx="7"/><path d="M61 127h18"/></g>
+        <g class="node"><rect x="462" y="68" width="56" height="18" rx="2"/><rect x="462" y="95" width="56" height="18" rx="2"/><rect x="462" y="122" width="56" height="18" rx="2"/><path d="M469 77h8M469 104h8M469 131h8"/></g>
+        <g class="off">
+          <path class="line strong" d="M100 104H456"/>
+          <path class="eye" d="M256 40s9-13 24-13 24 13 24 13-9 13-24 13-24-13-24-13z"/>
+          <circle class="eye" cx="280" cy="40" r="5"/>
+          <path class="ring" d="M280 58V96"/>
+        </g>
+        <g class="on">
+          <path class="tunnel" d="M100 98H240M100 110H240"/>
+          <path class="line" d="M320 104H456"/>
+          <circle class="disc" cx="280" cy="104" r="28"/>
+          <path class="half" d="M280 76a28 28 0 0 0 0 56z"/>
+          <path class="eye blind" d="M256 40s9-13 24-13 24 13 24 13-9 13-24 13-24-13-24-13z"/>
+          <circle class="eye blind" cx="280" cy="40" r="5"/>
+          <path class="eye blind" d="M258 58L302 22"/>
+        </g>
+      </svg>
+      <ol class="captions">
+        <li><strong>Your device</strong><span>Your traffic leaves it inside an encrypted tunnel.</span></li>
+        <li><strong>Barely-free server</strong><span>Malware sites are blocked here, and trackers by default.</span></li>
+        <li><strong>The sites you visit</strong><span>They see the server&rsquo;s address, not yours.</span></li>
+      </ol>
+      <p class="verdict"><span class="off">Your network can see which sites you connect to, and the sites see your own address.</span><span class="on">Your network sees one encrypted connection to a Barely-free server. The sites see the server&rsquo;s address, not yours.</span></p>
+      <figcaption>An illustration of how your traffic travels. It is not live data.</figcaption>
+    </figure>
   </section>
 
   <section id="nodes">
@@ -73,20 +114,63 @@
     <!--/nodes-->
   </section>
 
+  <section id="features">
+    <h2>Specification</h2>
+    <dl class="spec">
+      <div><dt>Protocol</dt><dd>WireGuard, running inside each server&rsquo;s kernel, so your traffic never waits on our code.</dd></div>
+      <div><dt>Stricter networks</dt><dd>AmneziaWG on every server, for networks that block ordinary VPNs. It is meant for light restrictions, not heavy ones.</dd></div>
+      <div><dt>Trackers</dt><dd>Known trackers are blocked by default, and you can switch that off per device. It does not block ads.</dd></div>
+      <div><dt>Malware</dt><dd>Sites known to spread malware are always blocked, through Quad9.</dd></div>
+      <div><dt>Servers</dt><dd>Two to start with. A new device goes to the closest server, or to another when that one is busy. You can also pick one yourself.</dd></div>
+      <div><dt>App</dt><dd>We recommend ClashMi, open source and made by KaringX: one profile holds every server and port, and it moves to another by itself if one is blocked or down. The official WireGuard and AmneziaWG apps work too.</dd></div>
+      <div><dt>Sign-in</dt><dd>No password: a six-digit code by email, which works for 10 minutes.</dd></div>
+      <div><dt>Keys</dt><dd>One for each device, made once, shown once, and never stored by us.</dd></div>
+      <div><dt>Forgetting</dt><dd>A server forgets a device&rsquo;s address about 5 minutes after it disconnects.</dd></div>
+      <div><dt>Backups</dt><dd>The account database, encrypted, every night. The newest 30 are kept.</dd></div>
+      <div><dt>Source</dt><dd>A public copy of the code, under the MIT licence.</dd></div>
+      <div><dt>Cost</dt><dd>Free for anybody, paid for by donations.</dd></div>
+    </dl>
+  </section>
+
   <section id="privacy">
     <h2>What we keep</h2>
-    <ul class="plain">
-      <li>We do not record the sites you visit. The servers&rsquo; DNS keeps no record of the names it looks up. Each server&rsquo;s memory holds every device&rsquo;s last address, last contact time and byte counts until about 5 minutes after it disconnects; none of it is written to a log.</li>
-      <li>Your email is kept only as a keyed fingerprint, so a stolen database would not give anyone a list of addresses.</li>
-      <li>A device's private key is made once, shown once, and never stored by us.</li>
-      <li>When you add a device, your approximate location (from your IP address, as Cloudflare sees it) is used once to pick the closest server, and it is not kept. If you are already on the VPN, the server's location is what counts.</li>
-      <li>An encrypted backup of the account database goes to our two servers every night, in case the computer that runs the website fails. The newest 30 are kept, so each lasts about 30 days.</li>
-    </ul>
-    <p class="note">Everything we keep, why, and for how long is in the <a href="/privacy">privacy policy</a>.</p>
+    <div class="keep-grid">
+      <div>
+        <h3>Kept</h3>
+        <ul class="plain">
+          <li>We do not record the sites you visit. The servers&rsquo; DNS keeps no record of the names it looks up. Each server&rsquo;s memory holds every device&rsquo;s last address, last contact time and byte counts until about 5 minutes after it disconnects; none of it is written to a log.</li>
+          <li>Your email is kept only as a keyed fingerprint, so a stolen database would not give anyone a list of addresses.</li>
+          <li>A device's private key is made once, shown once, and never stored by us.</li>
+          <li>When you add a device, your approximate location (from your IP address, as Cloudflare sees it) is used once to pick the closest server, and it is not kept. If you are already on the VPN, the server's location is what counts.</li>
+          <li>An encrypted backup of the account database goes to our two servers every night, in case the computer that runs the website fails. The newest 30 are kept, so each lasts about 30 days.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Never kept</h3>
+        <ul class="plain never">
+          <li>The sites you visit, the names you look up (the servers&rsquo; own DNS keeps no record of them), or anything you send or receive.</li>
+          <li>A history of connections: when a device connected before its latest contact, or which device made which connection to which site.</li>
+          <li>Your email address in a form we can read, your name, or your birthday.</li>
+          <li>A device&rsquo;s private key. It is made once, shown to you once, and never stored.</li>
+          <li>Analytics, adverts or tracking of any kind on this website.</li>
+        </ul>
+      </div>
+    </div>
+    <h3 class="retention-title">How long, with each bar on a log scale</h3>
+    <ol class="retention">
+      <li><strong>5 minutes</strong><span><span class="bar b1"></span><span class="what">Our servers forget a device&rsquo;s last address and contact time once it has disconnected.</span></span></li>
+      <li><strong>10 minutes</strong><span><span class="bar b2"></span><span class="what">A sign-in code works for this long.</span></span></li>
+      <li><strong>1 day</strong><span><span class="bar b3"></span><span class="what">Records of sign-in codes and code requests are deleted.</span></span></li>
+      <li><strong>30 days</strong><span><span class="bar b4"></span><span class="what">The newest 30 nightly copies of the account database are kept.</span></span></li>
+      <li><strong>60 days</strong><span><span class="bar b5"></span><span class="what">A sign-in session lasts this long, counted from your last visit if you ticked &ldquo;Keep me signed in&rdquo;.</span></span></li>
+      <li><strong>365 days</strong><span><span class="bar b6"></span><span class="what">The longest any sign-in session can last.</span></span></li>
+    </ol>
+    <p class="note">Your account and devices are kept until you delete your account. Everything we keep, why, and for how long is in the <a href="/privacy">privacy policy</a>.</p>
   </section>
 
   <section id="funding">
     <h2>Costs and funding</h2>
+    <p class="statement">Free for anybody, and paid for by the people who can give.</p>
     <p>Barely-free is free, and it is paid for by donations. What people give goes to the servers: keeping the two we have running, and buying more as the money allows, so more people can be let in. The service stays free whether or not anyone gives.</p>
     <p>The two servers cost about <strong>US$60 a year</strong> together (about C$85). Nothing donated yet.</p>
     <p class="actions">
@@ -98,17 +182,27 @@
 
   <section id="faq">
     <h2>Questions</h2>
-    <details><summary>Is it really free?</summary><p>Yes, for anybody. The servers are small, so expect limits on devices per account and per server, and a &ldquo;full, try later&rdquo; message when a server is at capacity.</p></details>
-    <details><summary>Why can't I sign up yet?</summary><p>This is a closed beta while the service is rebuilt. Sign-up opens after the safeguards are in place.</p></details>
-    <details><summary>Will it block ads?</summary><p>No. It blocks known trackers, which stops some ads as a side effect, but it does not use an ad list.</p></details>
-    <details><summary>How do I let trackers through on one device?</summary><p>On your account page, press Allow trackers next to that device. It takes effect within about a minute, with nothing to download again. Blocking works through the server's own DNS, so a device that uses its own DNS is not filtered, and devices added before tracker blocking started need to be added again to get it.</p></details>
-    <details><summary>How do I know the VPN is on?</summary><p>Open <a href="/check">the check page</a> on the device. It says whether that device is on Barely-free and through which server, and it keeps nothing about you.</p></details>
-    <details><summary>Who is behind it?</summary><p>One person: Laoel Beqiri, in Ontario, Canada. It is a small independent project, paid for by donations. The rules are in the <a href="/terms">terms of use</a> and what we keep is in the <a href="/privacy">privacy policy</a>. To report misuse, see <a href="/abuse">reporting abuse</a>; for anything else, <a href="/help">help and support</a>.</p></details>
+    <details name="faq"><summary>Is it really free?</summary><p>Yes, for anybody. The servers are small, so expect limits on devices per account and per server, and a &ldquo;full, try later&rdquo; message when a server is at capacity.</p></details>
+    <details name="faq"><summary>Why can't I sign up yet?</summary><p>This is a closed beta while the service is rebuilt. Sign-up opens after the safeguards are in place.</p></details>
+    <details name="faq"><summary>Which app should I use?</summary><p>We recommend ClashMi: one profile holds every server and port, and it moves to another by itself if one is blocked or down. The official WireGuard and AmneziaWG apps work too. The links are on the <a href="/help#apps">help page</a>.</p></details>
+    <details name="faq"><summary>Will it block ads?</summary><p>No. It blocks known trackers, which stops some ads as a side effect, but it does not use an ad list.</p></details>
+    <details name="faq"><summary>How do I let trackers through on one device?</summary><p>On your account page, press Allow trackers next to that device. It takes effect within about a minute, with nothing to download again. Blocking works through the server's own DNS, so a device that uses its own DNS is not filtered, and devices added before tracker blocking started need to be added again to get it.</p></details>
+    <details name="faq"><summary>How do I know the VPN is on?</summary><p>Open <a href="/check">the check page</a> on the device. It says whether that device is on Barely-free and through which server, and it keeps nothing about you.</p></details>
+    <details name="faq"><summary>Who is behind it?</summary><p>One person: Laoel Beqiri, in Ontario, Canada. It is a small independent project, paid for by donations. The rules are in the <a href="/terms">terms of use</a> and what we keep is in the <a href="/privacy">privacy policy</a>. To report misuse, see <a href="/abuse">reporting abuse</a>; for anything else, <a href="/help">help and support</a>.</p></details>
+  </section>
+
+  <section class="closing">
+    <h2>Privacy <em>shouldn&rsquo;t</em> come with a price tag.</h2>
+    <p class="actions"><a class="button" href="/signin">Sign in</a></p>
   </section>
 </main>
 
 <footer>
   <nav class="site-links" aria-label="Site">
+    <div class="about">
+      <p class="about-name"><svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="9.5"/><path d="M16 6.5a9.5 9.5 0 0 0 0 19z"/></svg>Barely-free</p>
+      <p>A free VPN for anybody, run by one person and paid for by donations.</p>
+    </div>
     <div>
       <h2>Service</h2>
       <ul>
@@ -139,6 +233,7 @@
     </div>
   </nav>
   <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  <p class="promise">This site runs no scripts and loads nothing from other sites.</p>
   <form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="/"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>
 </footer>
 

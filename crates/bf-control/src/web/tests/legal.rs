@@ -98,8 +98,12 @@ fn security_txt_names_a_contact_and_expires_within_a_year_of_the_security_page()
             .map(str::trim)
             .collect()
     };
-    // A Contact is a URI; with no email address it is the page that says how to report.
-    assert_eq!(field("Contact:"), vec!["https://barely-free.com/security"]);
+    // A Contact is a URI, most preferred first: GitHub's private form for the public source
+    // repository (there is no email address), then the page that says how to report.
+    assert_eq!(
+        field("Contact:"),
+        vec![PRIVATE_REPORT_FORM, "https://barely-free.com/security"]
+    );
     let expires = field("Expires:");
     assert_eq!(expires.len(), 1, "exactly one Expires");
     let expires = expires[0];
@@ -115,6 +119,54 @@ fn security_txt_names_a_contact_and_expires_within_a_year_of_the_security_page()
     assert_eq!(field("Policy:"), vec!["https://barely-free.com/security"]);
     assert_eq!(field("Preferred-Languages:"), vec!["en"]);
     assert!(field("Canonical:").is_empty(), "it is not signed");
+}
+
+/// GitHub's private vulnerability report form for the public source repository: the one
+/// private way to report a security problem until the community server opens (Lao,
+/// 2026-11-14: "GitHub private reporting"; turned on for `LAOUUUUU/opensourced`).
+const PRIVATE_REPORT_FORM: &str = "https://github.com/LAOUUUUU/opensourced/security/advisories/new";
+
+#[test]
+fn security_problems_go_to_one_private_form_named_on_the_site_and_in_the_repository() {
+    let link = format!("<a href=\"{PRIVATE_REPORT_FORM}\" rel=\"noopener noreferrer\">");
+    // The security page names it first thing, and still says where everything else goes.
+    let lead = part(SECURITY, "<p class=\"lead\">", "</p>");
+    assert!(lead.contains(&link), "{lead}");
+    assert!(text(lead).contains("free GitHub account"), "{lead}");
+    // The help page's contact section, the one place for contact, names it too.
+    let contact = HELP.split("<h2 id=\"contact\">").nth(1).unwrap();
+    let contact = contact.split("<h2").next().unwrap();
+    assert!(contact.contains(&link), "{contact}");
+    // The repository says the same: its security policy (GitHub shows SECURITY.md under the
+    // Security tab), the note on the New issue page, and the guide for contributors.
+    let policy = include_str!("../../../../../SECURITY.md");
+    assert!(policy.contains(PRIVATE_REPORT_FORM), "SECURITY.md");
+    assert!(
+        policy.contains("https://barely-free.com/security"),
+        "SECURITY.md"
+    );
+    let issues = include_str!("../../../../../.github/ISSUE_TEMPLATE/config.yml");
+    assert!(
+        issues.contains(&format!("url: {PRIVATE_REPORT_FORM}")),
+        "{issues}"
+    );
+    assert!(
+        issues.contains("blank_issues_enabled: true"),
+        "ordinary issues stay open"
+    );
+    let contributing = include_str!("../../../../../CONTRIBUTING.md");
+    assert!(contributing.contains("SECURITY.md"), "{contributing}");
+    // Still no email address anywhere (decision 018).
+    for (name, file) in [
+        ("SECURITY.md", policy),
+        ("config.yml", issues),
+        ("CONTRIBUTING.md", contributing),
+    ] {
+        assert!(
+            !file.contains("mailto:") && !file.contains("@"),
+            "{name} names an email address"
+        );
+    }
 }
 
 /// Every public page that is a file, by the path it is served at (the 404 has none).
@@ -136,7 +188,7 @@ const STATIC_PAGES: [(&str, &str); 11] = [
 const BASE: &str = include_str!("../../../templates/base.html");
 
 /// The part of `html` from `start` to the end of `end`.
-fn part<'a>(html: &'a str, start: &str, end: &str) -> &'a str {
+pub(super) fn part<'a>(html: &'a str, start: &str, end: &str) -> &'a str {
     let from = html.find(start).unwrap_or_else(|| panic!("no {start}"));
     let length = html[from..].find(end).unwrap_or_else(|| panic!("no {end}")) + end.len();
     &html[from..from + length]
@@ -189,19 +241,33 @@ fn every_public_page_has_the_same_header_and_footer() {
 #[test]
 fn the_header_and_footer_lead_to_help_the_account_and_every_legal_page() {
     let header = part(TERMS, "<header class=\"top\">", "</header>");
+    // The editorial menu (decision 028): five of the front page's sections, then help (shown
+    // in the phone's menu), the source and the account as a quiet pair, and the way in.
     for target in [
+        "/#why",
         "/#how",
         "/#nodes",
+        "/#privacy",
+        "/#faq",
         "/help",
         "/account",
+        "/signin",
         "https://github.com/LAOUUUUU/opensourced",
     ] {
         assert!(header.contains(&format!("href=\"{target}\"")), "{target}");
     }
-    assert!(
-        header.contains(">Source code</a>"),
-        "the menu says what it is"
-    );
+    for text in [
+        ">Why</a>",
+        ">How it works</a>",
+        ">Servers</a>",
+        ">Privacy</a>",
+        ">Questions</a>",
+        ">Source code</a>",
+        ">Account</a>",
+        ">Get started</a>",
+    ] {
+        assert!(header.contains(text), "the menu says {text}");
+    }
     let footer = part(TERMS, "<footer>", "</footer>");
     for target in INFO_PAGES.iter().copied().chain([
         "/cookies",
@@ -218,6 +284,78 @@ fn the_header_and_footer_lead_to_help_the_account_and_every_legal_page() {
         footer.contains("Laoel Beqiri") && footer.contains("Ontario, Canada"),
         "who runs it, and where"
     );
+}
+
+#[test]
+fn the_phone_menu_is_a_button_and_a_popover_that_need_no_script() {
+    let header = part(TERMS, "<header class=\"top\">", "</header>");
+    assert!(
+        header.contains("<button class=\"menu-button\" type=\"button\" popovertarget=\"menu\""),
+        "{header}"
+    );
+    assert!(
+        header.contains("<nav id=\"menu\" popover aria-label=\"Main\">"),
+        "{header}"
+    );
+    // The button has a name a screen reader can say.
+    let button = part(header, "<button", "</button>");
+    assert!(button.contains("aria-label=\"Menu\""), "{button}");
+    assert!(!header.contains("onclick") && !header.contains("<script"));
+}
+
+#[test]
+fn the_footer_says_what_the_site_does_not_do_and_the_policy_makes_it_true() {
+    let footer = part(TERMS, "<footer>", "</footer>");
+    assert!(
+        footer.contains("This site runs no scripts and loads nothing from other sites."),
+        "{footer}"
+    );
+    // True because the policy allows no script source and no other site's files.
+    for kept in ["default-src 'none'", "font-src 'self'"] {
+        assert!(POLICY.contains(kept), "{kept}");
+    }
+    assert!(!POLICY.contains("script-src"));
+}
+
+#[test]
+fn every_pages_browser_colour_is_its_themes_background() {
+    // A phone's browser paints its bar in `theme-color`; it must be the page's own ground in
+    // each theme, so the bar and the page meet without a seam.
+    let css = SITE_CSS;
+    let dark = css
+        .split(":root {")
+        .nth(1)
+        .unwrap()
+        .split('}')
+        .next()
+        .unwrap();
+    let light = css
+        .split("@media (prefers-color-scheme: light)")
+        .nth(1)
+        .unwrap()
+        .split('}')
+        .next()
+        .unwrap();
+    let bg = |block: &str| {
+        block
+            .split("--bg:")
+            .nth(1)
+            .and_then(|rest| rest.split(';').next())
+            .unwrap()
+            .trim()
+            .to_string()
+    };
+    let mut pages: Vec<(&str, &str)> = STATIC_PAGES.to_vec();
+    pages.push(("templates/base.html", BASE));
+    for (name, html) in pages {
+        for (scheme, block) in [("dark", dark), ("light", light)] {
+            let line = format!(
+                "<meta name=\"theme-color\" content=\"{}\" media=\"(prefers-color-scheme: {scheme})\">",
+                bg(block)
+            );
+            assert!(html.contains(&line), "{name} lacks {line}");
+        }
+    }
 }
 
 #[test]
@@ -288,7 +426,7 @@ const DATED_PAGES: [(&str, &str); 5] = [
 
 /// The page's text with every tag taken out and the spaces run together, so a test can look
 /// for a phrase whatever markup or line break sits inside it.
-fn text(html: &str) -> String {
+pub(super) fn text(html: &str) -> String {
     let mut out = String::new();
     let mut in_tag = false;
     for c in html.chars() {

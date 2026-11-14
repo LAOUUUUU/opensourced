@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0c0b0a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3eee4" media="(prefers-color-scheme: light)">
 <title>Report a security problem &middot; Barely-free</title>
 <meta name="description" content="How to report a security problem in Barely-free, and what we promise in return.">
 <link rel="canonical" href="https://barely-free.com/security">
@@ -13,32 +15,40 @@
 <meta property="og:description" content="How to report a security problem in Barely-free, and what we promise in return.">
 <meta property="og:url" content="https://barely-free.com/security">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+<link rel="preload" href="/assets/fonts/geist-latin-wght-normal.woff2?v=685b571ab077456d" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/bodoni-moda-latin-normal.woff2?v=828c0396b259b29a" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="/favicon.svg?v=f35d993ad7080db9" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=53f3f0da4717b066">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
-  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
-  <nav aria-label="Main">
+  <a class="brand" href="/"><svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="9.5"/><path d="M16 6.5a9.5 9.5 0 0 0 0 19z"/></svg>Barely-free</a>
+  <button class="menu-button" type="button" popovertarget="menu" aria-label="Menu"><span></span><span></span></button>
+  <nav id="menu" popover aria-label="Main">
+    <a href="/#why">Why</a>
     <a href="/#how">How it works</a>
     <a href="/#nodes">Servers</a>
-    <a href="/help">Help</a>
-    <a href="/account">Account</a>
+    <a href="/#privacy">Privacy</a>
+    <a href="/#faq">Questions</a>
+    <a class="extra" href="/help">Help</a>
     <a href="https://github.com/LAOUUUUU/opensourced" rel="noopener noreferrer">Source code</a>
+    <a href="/account">Account</a>
+    <a class="button" href="/signin">Get started</a>
   </nav>
 </header>
 
 <main id="main" class="narrow legal">
   <h1>Report a security problem</h1>
-  <p class="updated">Last updated <time datetime="2026-11-12">12 November 2026</time></p>
-  <p class="lead">If you find a security problem in Barely-free, please tell us privately first, so we can fix it before anyone can misuse it. How to reach us is on the <a href="/help#contact">help page</a>; send it only to us, never anywhere others can read it.</p>
+  <p class="updated">Last updated <time datetime="2026-11-14">14 November 2026</time></p>
+  <p class="lead">If you find a security problem in Barely-free, please tell us privately first, so we can fix it before anyone can misuse it. Use GitHub&rsquo;s private form for our source code: <a href="https://github.com/LAOUUUUU/opensourced/security/advisories/new" rel="noopener noreferrer">report a vulnerability</a>. It needs a free GitHub account, and only you and we can read what you send. Never post it anywhere others can read it, such as a public issue. Every other way to reach us is on the <a href="/help#contact">help page</a>.</p>
 
   <h2 id="scope">What is in scope</h2>
   <ul>
     <li>This website, barely-free.com: signing in, the account pages and the device setups they make.</li>
     <li>Our VPN servers, as reached through a Barely-free setup: for example one device reaching another, traffic or DNS leaking, or getting around a kick.</li>
+    <li>The source code we publish on GitHub.</li>
   </ul>
 
   <h2 id="out">What is not</h2>
@@ -72,12 +82,17 @@
 
   <h2 id="changes">Changes</h2>
   <ul class="changes">
+    <li><time datetime="2026-11-14">14 November 2026</time>: reports now go to GitHub&rsquo;s private form for our source code, the one private way to reach us until the community server opens; the published source code is in scope.</li>
     <li><time datetime="2026-11-12">12 November 2026</time>: first version.</li>
   </ul>
 </main>
 
 <footer>
   <nav class="site-links" aria-label="Site">
+    <div class="about">
+      <p class="about-name"><svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="9.5"/><path d="M16 6.5a9.5 9.5 0 0 0 0 19z"/></svg>Barely-free</p>
+      <p>A free VPN for anybody, run by one person and paid for by donations.</p>
+    </div>
     <div>
       <h2>Service</h2>
       <ul>
@@ -108,6 +123,7 @@
     </div>
   </nav>
   <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  <p class="promise">This site runs no scripts and loads nothing from other sites.</p>
   <form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="/security"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>
 </footer>
 </body>

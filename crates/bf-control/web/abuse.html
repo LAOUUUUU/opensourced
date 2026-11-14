@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0c0b0a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3eee4" media="(prefers-color-scheme: light)">
 <title>Report abuse &middot; Barely-free</title>
 <meta name="description" content="How to report abuse coming from a Barely-free server, including copyright notices, and what we can do about it.">
 <link rel="canonical" href="https://barely-free.com/abuse">
@@ -13,20 +15,27 @@
 <meta property="og:description" content="How to report abuse coming from a Barely-free server, including copyright notices, and what we can do about it.">
 <meta property="og:url" content="https://barely-free.com/abuse">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+<link rel="preload" href="/assets/fonts/geist-latin-wght-normal.woff2?v=685b571ab077456d" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/bodoni-moda-latin-normal.woff2?v=828c0396b259b29a" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="/favicon.svg?v=f35d993ad7080db9" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=53f3f0da4717b066">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
-  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
-  <nav aria-label="Main">
+  <a class="brand" href="/"><svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="9.5"/><path d="M16 6.5a9.5 9.5 0 0 0 0 19z"/></svg>Barely-free</a>
+  <button class="menu-button" type="button" popovertarget="menu" aria-label="Menu"><span></span><span></span></button>
+  <nav id="menu" popover aria-label="Main">
+    <a href="/#why">Why</a>
     <a href="/#how">How it works</a>
     <a href="/#nodes">Servers</a>
-    <a href="/help">Help</a>
-    <a href="/account">Account</a>
+    <a href="/#privacy">Privacy</a>
+    <a href="/#faq">Questions</a>
+    <a class="extra" href="/help">Help</a>
     <a href="https://github.com/LAOUUUUU/opensourced" rel="noopener noreferrer">Source code</a>
+    <a href="/account">Account</a>
+    <a class="button" href="/signin">Get started</a>
   </nav>
 </header>
 
@@ -74,6 +83,10 @@
 
 <footer>
   <nav class="site-links" aria-label="Site">
+    <div class="about">
+      <p class="about-name"><svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="9.5"/><path d="M16 6.5a9.5 9.5 0 0 0 0 19z"/></svg>Barely-free</p>
+      <p>A free VPN for anybody, run by one person and paid for by donations.</p>
+    </div>
     <div>
       <h2>Service</h2>
       <ul>
@@ -104,6 +117,7 @@
     </div>
   </nav>
   <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  <p class="promise">This site runs no scripts and loads nothing from other sites.</p>
   <form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="/abuse"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>
 </footer>
 </body>

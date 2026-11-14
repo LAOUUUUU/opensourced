@@ -1,11 +1,11 @@
 # Barely-free: public source copy
 
-This is a public, scrubbed copy of the source of [Barely-free](https://barely-free.com), a free VPN built on WireGuard (this copy is version 0.6.0). It holds the Rust code (the node agent `bf-agent`, the control program and website `bf-control`, and the shared library `bf-common`), the deploy scripts and the design notes.
+This is a public, scrubbed copy of the source of [Barely-free](https://barely-free.com), a free VPN built on WireGuard (this copy is version 0.7.0). It holds the Rust code (the node agent `bf-agent`, the control program and website `bf-control`, and the shared library `bf-common`), the deploy scripts and the design notes.
 
 - Addresses, host names and personal details are placeholders (`<vm ip>`, `<your-tailnet>.ts.net`, and documentation-range addresses in scripts and tests). **This is not a drop-in deployment of the live service**; the runbooks below describe how the live one is set up.
 - The private working notes, research briefs and specs are not part of this copy, so a few links below point at files that are not here.
 - Licensed under the MIT License (see `LICENSE`).
-- To report a security problem, use the contact on <https://barely-free.com/security>.
+- To report a security problem, use GitHub's private form for this repository (see `SECURITY.md`), never a public issue. The full policy is <https://barely-free.com/security>.
 
 ---
 
@@ -91,7 +91,7 @@ ssh -i ~/.ssh/<key> -o IdentitiesOnly=yes root@<node ip> 'sh -s -- <node> <node 
 Set `BF_CONTROL_IP=<address>` to open port 8443 to one address instead of everyone; `BF_UNDO=1` takes it back out. **Since 2026-11-12 both servers allow 8443 only from the web VM (`<vm ip>`)**: always run `deploy-caddy.sh` with `BF_CONTROL_IP=<vm ip>`, or it opens the port to everyone again. If the VM's home address changes, the server-down alerts fire; run it with the new address and delete the old rule (`ufw status numbered`). Details and the reasons: [decision 006](docs/decisions/006-agent-tls-with-caddys-own-ca.md) and [the agent module](docs/modules/bf-agent.md).
 
 ## The website
-`bf-control` serves the front page for barely-free.com on `127.0.0.1:18500` (`BC_LISTEN`, localhost only). Every response carries a strict content security policy; nothing loads from outside and no scripts run. A "Costs and funding" section has one plain link to the project's Ko-fi page for donations. The look is deliberately plain (system fonts, hairline rules, one green; redesigned 2026-11-10, deployed in 0.3.0). It runs on the web VM and reaches the world through a Cloudflare tunnel.
+`bf-control` serves the front page for barely-free.com on `127.0.0.1:18500` (`BC_LISTEN`, localhost only). Every response carries a strict content security policy; nothing loads from outside and no scripts run. A "Costs and funding" section has one plain link to the project's Ko-fi page for donations. The look is editorial (2026-11-14, `docs/decisions/028-editorial-direction.md`, on top of 027's "Hairline" machinery): Bodoni Moda for headings and Geist for text, both served from the site's own files, near-black with champagne or ivory with oxblood, hairlines as the only structure, and every bit of motion in CSS (transform and opacity only). It runs on the web VM and reaches the world through a Cloudflare tunnel.
 
 ```bash
 deploy/deploy-web.sh root@<vm ip> -o Port=<ssh port>          # build, copy the database aside, install and start it on the VM
@@ -102,11 +102,20 @@ Before the new program is put in place, `deploy-web.sh` stops the service and co
 
 What is left before it is public, and how the tunnel is wired: `docs/modules/bf-control.md`.
 
+### The redesign: look, motion and what it must keep (deployed 2026-11-14)
+Two briefs on one build: the architecture is `research/redesign/RESEARCH.md` and decision 027 ("Hairline"); the look is the editorial direction, `research/redesign-editorial/RESEARCH.md`, `specs/redesign-editorial.md` and decision `docs/decisions/028-editorial-direction.md`.
+- **The site still runs no scripts.** All motion is CSS, in the stylesheet's last block, behind `prefers-reduced-motion: no-preference`; it moves only transform and opacity and nothing moves forever (tests hold all three). Scroll-linked rules sit behind `@supports (animation-timeline: ...)`; the header that steps aside on the way down sits behind `@supports (container-type: scroll-state)` (Chrome and Edge 144 and later); other browsers get a still, complete page.
+- **Fonts** are `web/fonts/`: Geist (Latin, variable) and Bodoni Moda upright and italic (Latin, narrowed with fontTools to weight 400 to 600 and optical size 24 to 96), all under the SIL Open Font License with `OFL.txt` beside them, served at `/assets/fonts/` with a year of caching and named in `site.css` by fingerprint. Bodoni Moda's dashes are hairlines, so the hyphen and dashes come from the Times New Roman fallback face. The policy adds `font-src 'self'` and nothing else.
+- **After changing `site.css`, `favicon.svg` or a font**, every page's `?v=` must be re-stamped (a test names each address): the stylesheet carries the fonts' fingerprints and the pages carry the stylesheet's and the icon's. The preloads are fingerprinted too (Geist and Bodoni Moda on every page, the italic on the front page).
+- **Front page.** The first screen (the logo's half-filled circle, enlarged until the screen cuts it; "Privacy, without the *price.*"; one line; one action), Why ("One person. Two servers.", travelling across the screen), How it works (steps, then a VPN off/on drawing with captions), Servers (a map placed by each server's `node set-location` coordinates, drawn by `status::map`, across the full width, with the list below; left off when no server has coordinates), a specification sheet, what we keep (kept, never kept, and how long on a log scale; the numbers are tied to the code's constants), costs and funding, questions, a closing line. Every picture is decoration; the words beside it are the content. No photograph or render exists, so none is shown.
+- **The menu** is the name, five sections, "Source code" and "Account", and "Get started" (only for a visitor who is not signed in). Under 72 rem it is the word "Menu" and a full panel (an HTML `popover`, no script).
+- Looked at in a real browser at 375, 768, 1024 and 1440 px, light and dark, on every page type including the signed-in and admin pages.
+
 ### Source code link (built, not deployed)
 Every page's menu and footer links "Source code" to the public snapshot of the code, <https://github.com/LAOUUUUU/opensourced> (scrubbed: placeholders for addresses and names, no private notes or history). The privacy page names GitHub as a place a visitor only reaches by following the link. Details: `docs/modules/bf-control.md` ("Link to the public source").
 
 ### Legal, help and security pages (built, not deployed)
-Six pages, in the same plain style and with no scripts:
+Six pages, in the same style and with no scripts:
 - `/terms`, the terms of use;
 - `/privacy`, the privacy policy;
 - `/abuse`, reporting abuse and copyright notices;
@@ -116,7 +125,7 @@ Six pages, in the same plain style and with no scripts:
 
 Next to them is `/.well-known/security.txt`. Every public page now has one menu (How it works, Servers, Help, Account) and one footer (Service, Help and Legal links, "© 2026 Laoel Beqiri · Ontario, Canada", the theme buttons). The sign-in page says that continuing means agreeing to the terms and the privacy policy.
 
-There is no email address (Lao, 2026-11-12). Every "contact us" leads to `/help#contact`, which says the planned community server will be the way to reach us; put its link there when it exists. Abuse complaints reach the hosting company first (the servers' addresses are theirs), so watch the hosting account's inbox.
+There is no email address (Lao, 2026-11-12). Every "contact us" leads to `/help#contact`, which says the planned community server will be the way to reach us; put its link there when it exists. Security problems already have a private way in: GitHub's private vulnerability reporting on the public repository ([report a vulnerability](https://github.com/LAOUUUUU/opensourced/security/advisories/new), on since 2026-11-14), named on `/security`, on `/help#contact`, first in `security.txt`, and in the repository's `SECURITY.md`. `CONTRIBUTING.md` says how issues and pull requests work for a published copy, and `.github/ISSUE_TEMPLATE/config.yml` sends security reports from the New issue page to the private form. Abuse complaints reach the hosting company first (the servers' addresses are theirs), so watch the hosting account's inbox.
 
 **Before deploying:**
 - Confirm the zeros on the transparency page.
