@@ -1859,6 +1859,11 @@ mod tests {
                 .contains("<meta name=\"robots\" content=\"noindex\">")
         );
         assert!(r.body.contains("/assets/site.css"));
+        // The one address out is a plain link to the public source (in the menu and the
+        // footer); it loads nothing.
+        let link = "href=\"https://github.com/LAOUUUUU/opensourced\" rel=\"noopener noreferrer\"";
+        assert_eq!(r.body.matches(link).count(), 2, "the source link, twice");
+        let body = r.body.replace(link, "");
         for forbidden in [
             "<script",
             "<iframe",
@@ -1870,7 +1875,7 @@ mod tests {
             "onclick",
             "javascript:",
         ] {
-            assert!(!r.body.contains(forbidden), "{forbidden}");
+            assert!(!body.contains(forbidden), "{forbidden}");
         }
     }
 
@@ -3819,6 +3824,7 @@ mod tests {
             }),
             problem: None,
             in_sync: true,
+            note: None,
         }
     }
 

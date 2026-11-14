@@ -706,6 +706,73 @@ mod poller_flow {
     }
 
     #[test]
+    fn the_status_page_shows_the_uptime_the_real_poller_recorded_and_a_note_from_node_disable() {
+        let dir = dir("history");
+        let node = fake_node();
+        register(&dir, &node);
+        let running = server::Running::start(&[
+            ("BC_DB", dir.join("control.db").display().to_string()),
+            ("BC_NODES_DIR", dir.join("nodes").display().to_string()),
+            ("BC_POLL_SECS", "2".to_string()),
+        ]);
+        // The poller counts each pass in the database and puts the summary on the page.
+        wait_until("the uptime list to show a percentage", 20, || {
+            running
+                .get("/status")
+                .1
+                .contains("<li><strong>Toronto</strong>: 100.0% over 1 day</li>")
+        });
+
+        // A note set with the admin command shows under a server that is being fixed.
+        let off = admin(
+            &dir,
+            &[
+                "node",
+                "disable",
+                "toronto",
+                "--note",
+                "back at 20:00 & <soon>",
+            ],
+        );
+        assert_eq!(off.status.code(), Some(0), "{}", text(&off.stderr));
+        wait_until("the note to show", 20, || {
+            running
+                .get("/status")
+                .1
+                .contains("<p class=\"note\">Toronto: back at 20:00 &amp; &lt;soon&gt;</p>")
+        });
+        let (_, page) = running.get("/status");
+        assert!(page.contains("Being fixed"), "{page}");
+        assert!(!page.contains("<soon>"), "escaped: {page}");
+
+        // Enabling clears it.
+        let on = admin(&dir, &["node", "enable", "toronto"]);
+        assert_eq!(on.status.code(), Some(0), "{}", text(&on.stderr));
+        wait_until("the note to go", 20, || {
+            !running.get("/status").1.contains("back at 20:00")
+        });
+        let log = running.stop();
+        assert!(
+            !log.contains("uptime history"),
+            "nothing went wrong with it: {log}"
+        );
+
+        // The history is in the database, so it survives a restart of the website.
+        let again = server::Running::start(&[
+            ("BC_DB", dir.join("control.db").display().to_string()),
+            ("BC_NODES_DIR", dir.join("nodes").display().to_string()),
+            ("BC_POLL_SECS", "2".to_string()),
+        ]);
+        wait_until("the uptime list again", 20, || {
+            again
+                .get("/status")
+                .1
+                .contains("<li><strong>Toronto</strong>: 100.0% over 1 day</li>")
+        });
+        again.stop();
+    }
+
+    #[test]
     fn a_busy_setting_that_cannot_be_read_does_not_stop_the_poller_and_the_page_uses_the_defaults()
     {
         let dir = dir("busybad");

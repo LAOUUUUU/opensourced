@@ -119,6 +119,8 @@ pub struct NodeView {
     pub problem: Option<Problem>,
     /// Whether the node holds the list the database published in the last pass.
     pub in_sync: bool,
+    /// For a disabled node: why, in words for the status page (`node disable --note`).
+    pub note: Option<String>,
 }
 
 /// The poller's findings, shared with the website.
@@ -145,6 +147,8 @@ struct BoardInner {
     contacts: BTreeMap<String, Contact>,
     /// The remembered devices the last informative poll did not list (see [`remembered`]).
     missing: std::collections::BTreeSet<String>,
+    /// The status page's uptime summary, refreshed by the poller after each pass.
+    uptime: Vec<crate::uptime::Uptime>,
 }
 
 /// The newest handshake the website has read for one device: when, and through which
@@ -223,13 +227,31 @@ impl Board {
         let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         let mut missing = std::mem::take(&mut inner.missing);
         let contacts = remembered(std::mem::take(&mut inner.contacts), &mut missing, heard);
+        let uptime = std::mem::take(&mut inner.uptime);
         *inner = BoardInner {
             views,
             list_version: Some(list_version),
             updated_at: Some(now),
             contacts,
             missing,
+            uptime,
         };
+    }
+
+    /// The uptime summary the poller last worked out (empty before its first pass).
+    pub fn uptime(&self) -> Vec<crate::uptime::Uptime> {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .uptime
+            .clone()
+    }
+
+    pub(crate) fn set_uptime(&self, uptime: Vec<crate::uptime::Uptime>) {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .uptime = uptime;
     }
 
     /// What the board says at `now`. If the last pass finished more than
@@ -415,6 +437,9 @@ pub struct Poller {
     poke: Notify,
     slots: Mutex<HashMap<String, Slot>>,
     last_note: Mutex<Option<String>>,
+    /// The day (Unix days) the uptime history was last pruned; 0 until the first pass.
+    last_prune_day: std::sync::atomic::AtomicU64,
+    last_uptime_note: Mutex<Option<String>>,
 }
 
 impl Poller {
@@ -437,6 +462,8 @@ impl Poller {
             poke: Notify::new(),
             slots: Mutex::default(),
             last_note: Mutex::default(),
+            last_prune_day: std::sync::atomic::AtomicU64::new(0),
+            last_uptime_note: Mutex::default(),
         })
     }
 
@@ -524,7 +551,57 @@ impl Poller {
         }
         // Slots of nodes that were removed or disabled are dropped with this.
         *self.slots.lock().unwrap_or_else(PoisonError::into_inner) = slots;
+        let passes = crate::status::availability(&views);
         self.board.replace(views, list.version, (self.clock)());
+        self.record_uptime(passes).await;
+    }
+
+    /// Adds this pass to the uptime history, prunes it once a day and refreshes the summary
+    /// the status page reads from the board. A failure is logged (once per change) and never
+    /// stops the pass.
+    async fn record_uptime(&self, passes: Vec<(String, String, crate::uptime::Availability)>) {
+        let now = (self.clock)();
+        let store = self.store.clone();
+        let prune = now / 86_400
+            != self
+                .last_prune_day
+                .load(std::sync::atomic::Ordering::Relaxed);
+        let done = tokio::task::spawn_blocking(move || {
+            let mut store = store.lock().unwrap_or_else(PoisonError::into_inner);
+            store.record_uptime(now, &passes)?;
+            if prune {
+                store.prune_uptime(now)?;
+            }
+            store.uptime_summary(now)
+        })
+        .await;
+        match done {
+            Ok(Ok(summary)) => {
+                if prune {
+                    self.last_prune_day
+                        .store(now / 86_400, std::sync::atomic::Ordering::Relaxed);
+                }
+                self.board.set_uptime(summary);
+                self.uptime_note(None);
+            }
+            Ok(Err(e)) => self.uptime_note(Some(format!("cannot keep the uptime history: {e}"))),
+            Err(_) => self.uptime_note(Some("the uptime history task failed".to_string())),
+        }
+    }
+
+    /// Like [`Poller::note`], for the uptime history, so one problem does not hide the other.
+    fn uptime_note(&self, message: Option<String>) {
+        let mut last = self
+            .last_uptime_note
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if *last != message {
+            match &message {
+                Some(text) => (self.log)(text),
+                None => (self.log)("the uptime history is being kept again"),
+            }
+            *last = message;
+        }
     }
 
     /// What the board holds for a disabled node: its name and place, nothing read, nothing
@@ -543,6 +620,7 @@ impl Poller {
             reading: None,
             problem: None,
             in_sync: false,
+            note: node.note.clone(),
         }
     }
 
@@ -663,6 +741,7 @@ impl Poller {
             reading: Some(reading),
             problem,
             in_sync,
+            note: None,
         };
         self.log_change(node, &mut slot, &view, false);
         (slot, view)
@@ -687,6 +766,7 @@ impl Poller {
             reading: None,
             problem: Some(problem),
             in_sync: false,
+            note: None,
         };
         self.log_change(node, &mut slot, &view, true);
         (slot, view)
@@ -736,6 +816,7 @@ mod tests {
     use crate::store::KickEnd;
     use crate::testagent::{FakeConnector, FakeNode, T0, secret_hex};
     use crate::testtls::Authority;
+    use crate::uptime::KEEP_DAYS;
 
     struct Rig {
         poller: Arc<Poller>,
@@ -1468,6 +1549,7 @@ mod tests {
                 }),
                 problem: Some(Problem::Internal),
                 in_sync: true,
+                note: None,
             }],
             T0,
         );
@@ -1662,6 +1744,200 @@ mod tests {
             "{:?}",
             rig.logs()
         );
+    }
+
+    // ---- the uptime history ----
+
+    fn counts(rig: &Rig) -> Vec<(String, u64, u64)> {
+        let now = rig.clock.load(Ordering::SeqCst);
+        rig.store
+            .lock()
+            .unwrap()
+            .uptime_summary(now)
+            .unwrap()
+            .into_iter()
+            .map(|u| (u.title, u.up, u.down))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn each_pass_counts_a_working_server_once_and_the_board_carries_the_summary() {
+        let rig = rig();
+        rig.node("toronto", 0x11);
+        rig.pass().await;
+        rig.advance(10);
+        rig.pass().await;
+        assert_eq!(counts(&rig), [("TORONTO".to_string(), 2, 0)]);
+        let on_board = rig.poller.board().uptime();
+        assert_eq!(on_board.len(), 1);
+        assert_eq!(
+            (on_board[0].title.as_str(), on_board[0].up, on_board[0].down),
+            ("TORONTO", 2, 0)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_server_that_is_down_counts_down_and_one_being_fixed_counts_nothing() {
+        let rig = rig();
+        let toronto = rig.node("toronto", 0x11);
+        rig.node("dallas", 0x22);
+        rig.pass().await; // both up: 1 each
+        toronto.down.store(true, Ordering::SeqCst);
+        // Three failed passes before the page calls it down; after that each pass counts down.
+        for _ in 0..5 {
+            rig.advance(10);
+            rig.pass().await;
+        }
+        let mut now = counts(&rig);
+        now.sort();
+        let toronto_row = now.iter().find(|r| r.0 == "TORONTO").unwrap().clone();
+        assert!(toronto_row.2 >= 1, "down passes are counted: {now:?}");
+        assert_eq!(
+            toronto_row.1,
+            1 + 2,
+            "up before it went down: the first pass and two failed passes that still read Online: {now:?}"
+        );
+
+        // Switched off for repair: nothing is counted, up or down.
+        rig.store
+            .lock()
+            .unwrap()
+            .disable_node("toronto", None)
+            .unwrap();
+        let before = counts(&rig);
+        for _ in 0..3 {
+            rig.advance(10);
+            rig.pass().await;
+        }
+        let after = counts(&rig);
+        let pick = |v: &[(String, u64, u64)]| v.iter().find(|r| r.0 == "TORONTO").cloned();
+        assert_eq!(pick(&before), pick(&after), "being fixed counts nothing");
+        let dallas = |v: &[(String, u64, u64)]| v.iter().find(|r| r.0 == "DALLAS").unwrap().1;
+        assert_eq!(
+            dallas(&after),
+            dallas(&before) + 3,
+            "the server that is up keeps counting"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_two_agents_of_one_server_count_once_per_pass() {
+        let rig = rig();
+        rig.node("toronto", 0x11);
+        rig.agent("toronto-wg", 0x12, None);
+        rig.store
+            .lock()
+            .unwrap()
+            .conn
+            .execute(
+                "UPDATE nodes SET title = 'TORONTO' WHERE name = 'toronto-wg'",
+                [],
+            )
+            .unwrap();
+        rig.pass().await;
+        rig.advance(10);
+        rig.pass().await;
+        assert_eq!(counts(&rig), [("TORONTO".to_string(), 2, 0)]);
+    }
+
+    #[tokio::test]
+    async fn the_history_is_pruned_once_a_day_and_not_on_every_pass() {
+        let rig = rig();
+        rig.node("toronto", 0x11);
+        rig.pass().await; // the first pass of the day prunes (nothing to delete yet)
+        let now = rig.clock.load(Ordering::SeqCst);
+        let ancient = (now / 3600) as i64 - (KEEP_DAYS as i64 + 5) * 24;
+        let add_old = |rig: &Rig| {
+            rig.store
+                .lock()
+                .unwrap()
+                .conn
+                .execute(
+                    "INSERT OR REPLACE INTO uptime_hours (title, place, hour, up, down) VALUES ('OLD', 'x', ?1, 1, 0)",
+                    [ancient],
+                )
+                .unwrap();
+        };
+        let old_rows = |rig: &Rig| -> i64 {
+            rig.store
+                .lock()
+                .unwrap()
+                .conn
+                .query_row(
+                    "SELECT COUNT(*) FROM uptime_hours WHERE title = 'OLD'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap()
+        };
+        add_old(&rig);
+        rig.advance(10);
+        rig.pass().await;
+        assert_eq!(old_rows(&rig), 1, "the same day: not pruned again");
+        rig.advance(86_400);
+        rig.pass().await;
+        assert_eq!(old_rows(&rig), 0, "the next day it goes");
+    }
+
+    #[tokio::test]
+    async fn a_history_that_cannot_be_written_is_logged_once_and_the_pass_goes_on() {
+        let rig = rig();
+        rig.node("toronto", 0x11);
+        rig.pass().await;
+        rig.store
+            .lock()
+            .unwrap()
+            .conn
+            .execute("DROP TABLE uptime_hours", [])
+            .unwrap();
+        for _ in 0..3 {
+            rig.advance(10);
+            rig.pass().await;
+        }
+        let said: Vec<String> = rig
+            .logs()
+            .into_iter()
+            .filter(|l| l.contains("uptime"))
+            .collect();
+        assert_eq!(
+            said.len(),
+            1,
+            "logged once, not every pass: {:?}",
+            rig.logs()
+        );
+        assert_eq!(
+            rig.view("toronto").health,
+            Health::Online,
+            "the pass went on"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_disabled_nodes_note_is_on_the_board_and_an_enabled_nodes_is_not() {
+        let rig = rig();
+        rig.node("toronto", 0x11);
+        rig.node("dallas", 0x22);
+        rig.pass().await;
+        assert_eq!(rig.view("toronto").note, None);
+
+        rig.store
+            .lock()
+            .unwrap()
+            .disable_node("toronto", Some("back at 20:00"))
+            .unwrap();
+        rig.advance(10);
+        rig.pass().await;
+        assert_eq!(rig.view("toronto").note.as_deref(), Some("back at 20:00"));
+        assert_eq!(rig.view("dallas").note, None);
+
+        rig.store
+            .lock()
+            .unwrap()
+            .set_node_enabled("toronto", true)
+            .unwrap();
+        rig.advance(10);
+        rig.pass().await;
+        assert_eq!(rig.view("toronto").note, None, "enabling clears it");
     }
 
     #[tokio::test]

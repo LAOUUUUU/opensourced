@@ -249,7 +249,7 @@ fn fetch_takes_the_newest_backup_checks_it_and_says_what_is_in_it() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     for wanted in [
-        "schema version 6",
+        "schema version 7",
         "1 accounts",
         "0 devices",
         "integrity ok",

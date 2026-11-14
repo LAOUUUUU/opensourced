@@ -28,6 +28,8 @@ pub struct Server {
     /// How close the server is to being overloaded, in percent, rounded down to the nearest
     /// 10 (100 only when it is overloaded); `None` when it is not working or has no reading.
     pub load: Option<u8>,
+    /// For a server that is Being fixed: the admin's note ("back at 20:00"), if there is one.
+    pub fixing_note: Option<String>,
 }
 
 impl State {
@@ -71,17 +73,7 @@ impl State {
 /// Every server on the board, in the order they first appear, with its word. A server is
 /// the agents that share a title and a place.
 pub fn servers(snapshot: &Snapshot, busy: &Busy) -> Vec<Server> {
-    let mut groups: Vec<(&str, &str, Vec<&NodeView>)> = Vec::new();
-    for node in &snapshot.nodes {
-        match groups
-            .iter_mut()
-            .find(|(title, place, _)| *title == node.title && *place == node.place)
-        {
-            Some((_, _, agents)) => agents.push(node),
-            None => groups.push((&node.title, &node.place, vec![node])),
-        }
-    }
-    groups
+    groups(&snapshot.nodes)
         .into_iter()
         .map(|(title, place, agents)| {
             let (together, has_reading) = together(&agents);
@@ -93,7 +85,56 @@ pub fn servers(snapshot: &Snapshot, busy: &Busy) -> Vec<Server> {
                 state,
                 notes: notes_of(&agents),
                 load: (working && has_reading).then(|| load_percent(&together, busy)),
+                fixing_note: if state == State::BeingFixed {
+                    agents
+                        .iter()
+                        .filter(|node| node.health == Health::BeingFixed)
+                        .find_map(|node| node.note.clone())
+                } else {
+                    None
+                },
             }
+        })
+        .collect()
+}
+
+/// The agents grouped into servers (the same title and place), in the order they first
+/// appear.
+fn groups(nodes: &[NodeView]) -> Vec<(&str, &str, Vec<&NodeView>)> {
+    let mut groups: Vec<(&str, &str, Vec<&NodeView>)> = Vec::new();
+    for node in nodes {
+        match groups
+            .iter_mut()
+            .find(|(title, place, _)| *title == node.title && *place == node.place)
+        {
+            Some((_, _, agents)) => agents.push(node),
+            None => groups.push((&node.title, &node.place, vec![node])),
+        }
+    }
+    groups
+}
+
+/// What each server's agents say about whether it was working in this pass, for the uptime
+/// history: working when some agent is online (the word Up or Overloaded), down when the
+/// word would be Down, and nothing for Being fixed and Status unknown (those servers are left
+/// out). It is checked against [`servers`] for every mix of agents.
+pub fn availability(nodes: &[NodeView]) -> Vec<(String, String, crate::uptime::Availability)> {
+    use crate::uptime::Availability;
+    groups(nodes)
+        .into_iter()
+        .filter_map(|(title, place, agents)| {
+            let what = if agents.iter().any(|node| node.health == Health::Online) {
+                Availability::Working
+            } else if !agents.iter().all(|node| node.health == Health::BeingFixed)
+                && agents
+                    .iter()
+                    .all(|node| matches!(node.health, Health::NotResponding | Health::BeingFixed))
+            {
+                Availability::Down
+            } else {
+                return None;
+            };
+            Some((title.to_string(), place.to_string(), what))
         })
         .collect()
 }
@@ -189,7 +230,12 @@ pub fn card(server: &Server, show_load: bool) -> String {
 /// The HTML `/status` puts in place of its marker: the cards, a line for each note, what the
 /// words in use mean, and how long ago the board was last updated. It has no device count,
 /// no load figure and no node name; the words are all it says about a server.
-pub fn answer(snapshot: &Snapshot, busy: &Busy, now: u64) -> String {
+pub fn answer(
+    snapshot: &Snapshot,
+    busy: &Busy,
+    now: u64,
+    uptime: &[crate::uptime::Uptime],
+) -> String {
     let servers = servers(snapshot, busy);
     if servers.is_empty() {
         return "<p class=\"lead\">No servers are listed yet.</p>".to_string();
@@ -207,6 +253,36 @@ pub fn answer(snapshot: &Snapshot, busy: &Busy, now: u64) -> String {
             ));
         }
     }
+    for server in &servers {
+        if let Some(note) = &server.fixing_note {
+            html.push_str(&format!(
+                "  <p class=\"note\">{}: {}</p>\n",
+                escape_html(&server.title),
+                escape_html(note)
+            ));
+        }
+    }
+    html.push_str("  <h2 class=\"section-title\">Uptime</h2>\n  <ul class=\"plain\">\n");
+    for server in &servers {
+        let counted = uptime
+            .iter()
+            .find(|u| u.title == server.title && u.place == server.place)
+            .and_then(|u| Some((crate::uptime::tenths(u.up, u.down)?, u.first_hour)));
+        let line = match counted {
+            Some((tenths, first_hour)) => format!(
+                "{}.{}% over {}",
+                tenths / 10,
+                tenths % 10,
+                days_over(first_hour, now)
+            ),
+            None => "no history yet".to_string(),
+        };
+        html.push_str(&format!(
+            "    <li><strong>{}</strong>: {line}</li>\n",
+            escape_html(&server.title)
+        ));
+    }
+    html.push_str("  </ul>\n  <p class=\"note\">Uptime counts the checks in which a server was working, over the last 30 days or as long as we have been counting. Time a server spends being fixed is not counted.</p>\n");
     html.push_str(
         "  <h2 class=\"section-title\">What the words mean</h2>\n  <ul class=\"plain\">\n",
     );
@@ -245,6 +321,14 @@ pub fn empty_board() -> Snapshot {
         updated_at: None,
         contacts: Default::default(),
     }
+}
+
+/// "1 day" to "30 days": how much history the percentage covers, from the first counted hour
+/// to now, whole days rounded up and never more than the window.
+fn days_over(first_hour: u64, now: u64) -> String {
+    let hours = (now / 3600).saturating_sub(first_hour) + 1;
+    let days = hours.div_ceil(24).clamp(1, crate::uptime::WINDOW_DAYS);
+    format!("{days} day{}", if days == 1 { "" } else { "s" })
 }
 
 /// "4 seconds ago", "1 minute ago", "2 hours ago".
@@ -295,6 +379,7 @@ mod tests {
             }),
             problem: None,
             in_sync: true,
+            note: None,
         }
     }
 
@@ -502,6 +587,305 @@ mod tests {
         assert_eq!(servers(&late, &Busy::default())[0].state, State::Unknown);
     }
 
+    // ---- the maintenance note ----
+
+    fn fixed(title: &str, protocol: Option<Protocol>, note: Option<&str>) -> NodeView {
+        let mut node = agent(title, protocol, Health::BeingFixed, 0, None);
+        node.note = note.map(str::to_string);
+        node
+    }
+
+    #[test]
+    fn a_server_being_fixed_carries_its_note() {
+        let all = servers(
+            &board(vec![
+                fixed("Paris", WG, Some("back at 20:00")),
+                fixed("Paris", AWG, None),
+            ]),
+            &Busy::default(),
+        );
+        assert_eq!(all[0].state, State::BeingFixed);
+        assert_eq!(all[0].fixing_note.as_deref(), Some("back at 20:00"));
+    }
+
+    #[test]
+    fn the_first_note_found_among_the_agents_being_fixed_is_used() {
+        let all = servers(
+            &board(vec![
+                fixed("Paris", WG, None),
+                fixed("Paris", AWG, Some("second agent's note")),
+            ]),
+            &Busy::default(),
+        );
+        assert_eq!(all[0].fixing_note.as_deref(), Some("second agent's note"));
+        let both = servers(
+            &board(vec![
+                fixed("Paris", WG, Some("first")),
+                fixed("Paris", AWG, Some("second")),
+            ]),
+            &Busy::default(),
+        );
+        assert_eq!(both[0].fixing_note.as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn a_note_is_not_shown_for_a_server_that_is_still_working_or_is_not_being_fixed() {
+        // Up, with one agent switched off and noted: the "is being fixed" line says enough.
+        let all = servers(
+            &board(vec![
+                fixed("Paris", WG, Some("back at 20:00")),
+                agent("Paris", AWG, Health::Online, 1, None),
+            ]),
+            &Busy::default(),
+        );
+        assert_eq!(all[0].state, State::Up);
+        assert_eq!(all[0].fixing_note, None);
+        // Down (one agent fixed, the other not answering): not "being fixed" as a word.
+        let down = servers(
+            &board(vec![
+                fixed("Paris", WG, Some("back at 20:00")),
+                agent("Paris", AWG, Health::NotResponding, 0, None),
+            ]),
+            &Busy::default(),
+        );
+        assert_eq!(down[0].state, State::Down);
+        assert_eq!(down[0].fixing_note, None);
+        // A stray note on a node that is not disabled is never shown.
+        let mut stray = agent("Paris", WG, Health::Online, 1, None);
+        stray.note = Some("stale".to_string());
+        let up = servers(&board(vec![stray]), &Busy::default());
+        assert_eq!(up[0].fixing_note, None);
+    }
+
+    #[test]
+    fn the_page_shows_the_note_as_a_line_naming_the_server_escaped() {
+        let html = page(
+            vec![
+                fixed("Paris", WG, Some("back at 20:00")),
+                agent("Toronto", WG, Health::Online, 1, None),
+            ],
+            105,
+        );
+        assert!(
+            html.contains("<p class=\"note\">Paris: back at 20:00</p>"),
+            "{html}"
+        );
+        assert_eq!(html.matches("back at 20:00").count(), 1, "{html}");
+        let hostile = page(
+            vec![fixed(
+                "<b>P</b>",
+                WG,
+                Some("<script>alert(1)</script> & co"),
+            )],
+            105,
+        );
+        assert!(
+            hostile
+                .contains("&lt;b&gt;P&lt;/b&gt;: &lt;script&gt;alert(1)&lt;/script&gt; &amp; co"),
+            "{hostile}"
+        );
+        assert!(
+            !hostile.contains("<script>") && !hostile.contains("<b>"),
+            "{hostile}"
+        );
+    }
+
+    #[test]
+    fn no_note_means_no_line() {
+        let html = page(vec![fixed("Paris", WG, None)], 105);
+        assert!(!html.contains("Paris:"), "{html}");
+    }
+
+    #[test]
+    fn availability_agrees_with_the_word_for_every_mix_of_one_to_three_agents() {
+        use crate::uptime::Availability;
+        let healths = [
+            Health::Online,
+            Health::NotResponding,
+            Health::BeingFixed,
+            Health::Unknown,
+        ];
+        let mut cases = 0;
+        for count in 1..=3usize {
+            for combo in 0..healths.len().pow(count as u32) {
+                let nodes: Vec<NodeView> = (0..count)
+                    .map(|i| {
+                        let h = healths[(combo / healths.len().pow(i as u32)) % healths.len()];
+                        agent("Toronto", WG, h, 1, None)
+                    })
+                    .collect();
+                let word = servers(&board(nodes.clone()), &Busy::default())[0].state;
+                let said = availability(&nodes);
+                let expected = match word {
+                    State::Up | State::Overloaded => Some(Availability::Working),
+                    State::Down => Some(Availability::Down),
+                    State::BeingFixed | State::Unknown => None,
+                };
+                match expected {
+                    Some(what) => assert_eq!(
+                        said,
+                        vec![("Toronto".to_string(), "Canada".to_string(), what)],
+                        "{word:?} for {:?}",
+                        nodes.iter().map(|n| n.health).collect::<Vec<_>>()
+                    ),
+                    None => assert!(said.is_empty(), "{word:?}: {said:?}"),
+                }
+                cases += 1;
+            }
+        }
+        assert_eq!(cases, 4 + 16 + 64);
+    }
+
+    #[test]
+    fn availability_gives_one_entry_per_server_in_the_order_they_first_appear() {
+        use crate::uptime::Availability::{Down, Working};
+        let mut elsewhere = agent("Dallas", WG, Health::Online, 0, None);
+        elsewhere.place = "United States".to_string();
+        let said = availability(&[
+            agent("Toronto", WG, Health::Online, 0, None),
+            elsewhere,
+            agent("Toronto", AWG, Health::NotResponding, 0, None),
+            agent("Lyon", WG, Health::NotResponding, 0, None),
+            agent("Paris", WG, Health::BeingFixed, 0, None),
+        ]);
+        assert_eq!(
+            said,
+            vec![
+                ("Toronto".to_string(), "Canada".to_string(), Working),
+                ("Dallas".to_string(), "United States".to_string(), Working),
+                ("Lyon".to_string(), "Canada".to_string(), Down),
+            ]
+        );
+    }
+
+    // ---- the uptime list ----
+
+    use crate::uptime::{Uptime, WINDOW_DAYS};
+
+    /// `now` for these tests, and the hour it is in.
+    const NOW: u64 = 1_800_000_000;
+    const NOW_HOUR: u64 = NOW / 3600;
+
+    fn counted(title: &str, up: u64, down: u64, days: u64) -> Uptime {
+        Uptime {
+            title: title.to_string(),
+            place: "Canada".to_string(),
+            up,
+            down,
+            first_hour: NOW_HOUR - (days * 24 - 1),
+        }
+    }
+
+    fn with_uptime(nodes: Vec<NodeView>, uptime: Vec<Uptime>) -> String {
+        answer(&board(nodes), &Busy::default(), NOW, &uptime)
+    }
+
+    #[test]
+    fn each_servers_uptime_is_a_percentage_rounded_down_with_the_days_it_covers() {
+        let html = with_uptime(
+            vec![agent("Toronto", WG, Health::Online, 1, None)],
+            vec![counted("Toronto", 998, 2, 12)],
+        );
+        assert!(
+            html.contains("<h2 class=\"section-title\">Uptime</h2>"),
+            "{html}"
+        );
+        assert!(
+            html.contains("<li><strong>Toronto</strong>: 99.8% over 12 days</li>"),
+            "{html}"
+        );
+        let rounded = with_uptime(
+            vec![agent("Toronto", WG, Health::Online, 1, None)],
+            vec![counted("Toronto", 9996, 4, 12)],
+        );
+        assert!(
+            rounded.contains("99.9% over 12 days"),
+            "99.96 reads 99.9: {rounded}"
+        );
+        let perfect = with_uptime(
+            vec![agent("Toronto", WG, Health::Online, 1, None)],
+            vec![counted("Toronto", 5000, 0, 12)],
+        );
+        assert!(perfect.contains("100.0% over 12 days"), "{perfect}");
+    }
+
+    #[test]
+    fn the_days_covered_read_from_one_to_the_30_day_window() {
+        for (days, said) in [(1, "over 1 day"), (2, "over 2 days"), (30, "over 30 days")] {
+            let html = with_uptime(
+                vec![agent("Toronto", WG, Health::Online, 1, None)],
+                vec![counted("Toronto", 99, 1, days)],
+            );
+            assert!(html.contains(said), "{days}: {html}");
+        }
+        // Whatever the database says, never more than the window.
+        let mut older = counted("Toronto", 99, 1, 30);
+        older.first_hour -= 24 * 50;
+        let html = with_uptime(
+            vec![agent("Toronto", WG, Health::Online, 1, None)],
+            vec![older],
+        );
+        assert!(html.contains(&format!("over {WINDOW_DAYS} days")), "{html}");
+    }
+
+    #[test]
+    fn a_server_with_no_history_says_so_and_only_servers_on_the_page_are_listed() {
+        let html = with_uptime(
+            vec![
+                agent("Toronto", WG, Health::Online, 1, None),
+                agent("Dallas", WG, Health::Online, 1, None),
+            ],
+            vec![counted("Toronto", 99, 1, 3), counted("Elsewhere", 1, 0, 3)],
+        );
+        assert!(
+            html.contains("<li><strong>Dallas</strong>: no history yet</li>"),
+            "{html}"
+        );
+        assert!(!html.contains("Elsewhere"), "{html}");
+    }
+
+    #[test]
+    fn the_uptime_list_matches_a_server_by_title_and_by_place() {
+        let mut france = agent("Toronto", WG, Health::Online, 1, None);
+        france.place = "France".to_string();
+        let html = with_uptime(
+            vec![agent("Toronto", WG, Health::Online, 1, None), france],
+            vec![counted("Toronto", 99, 1, 3)],
+        );
+        assert!(
+            html.contains("<li><strong>Toronto</strong>: 99.0% over 3 days</li>"),
+            "{html}"
+        );
+        assert!(
+            html.contains("<li><strong>Toronto</strong>: no history yet</li>"),
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn the_uptime_list_says_what_is_counted_gives_no_counts_and_escapes() {
+        let html = with_uptime(
+            vec![agent("<i>T</i>", WG, Health::Online, 1, None)],
+            vec![counted("<i>T</i>", 123_456, 789, 5)],
+        );
+        assert!(
+            html.contains("is not counted"),
+            "being fixed is not counted: {html}"
+        );
+        assert!(
+            html.contains(&format!("last {WINDOW_DAYS} days")),
+            "the sentence names the window the figure really uses: {html}"
+        );
+        for leaked in ["123456", "123,456", "789"] {
+            assert!(!html.contains(leaked), "{leaked} in {html}");
+        }
+        assert!(html.contains("&lt;i&gt;T&lt;/i&gt;"), "{html}");
+        assert!(!html.contains("<i>"), "{html}");
+        let before_words =
+            html.find("Uptime</h2>").unwrap() < html.find("What the words mean").unwrap();
+        assert!(before_words, "the uptime comes before the words: {html}");
+    }
+
     #[test]
     fn a_server_that_is_down_being_fixed_or_unknown_has_no_notes_its_word_says_it_all() {
         for health in [Health::NotResponding, Health::BeingFixed, Health::Unknown] {
@@ -702,6 +1086,7 @@ mod tests {
             state: State::Up,
             notes: Vec::new(),
             load: Some(30),
+            fixing_note: None,
         };
         assert!(
             card(&server, true).ends_with("<span class=\"where\">Canada</span><span class=\"where\">30% load</span><span class=\"state up\">Up</span></li>"),
@@ -772,7 +1157,7 @@ mod tests {
     // ---- the page ----
 
     fn page(nodes: Vec<NodeView>, now: u64) -> String {
-        answer(&board(nodes), &Busy::default(), now)
+        answer(&board(nodes), &Busy::default(), now, &[])
     }
 
     #[test]
@@ -799,7 +1184,17 @@ mod tests {
             ],
             105,
         );
-        assert_eq!(html.matches("<strong>Dallas</strong>").count(), 1, "{html}");
+        let cards = html.split("</ul>").next().unwrap();
+        assert_eq!(
+            cards.matches("<strong>Dallas</strong>").count(),
+            1,
+            "{html}"
+        );
+        assert_eq!(
+            html.matches("<strong>Dallas</strong>").count(),
+            2,
+            "one card, and one line in the uptime list: {html}"
+        );
     }
 
     #[test]
@@ -821,6 +1216,7 @@ mod tests {
                     state,
                     notes: Vec::new(),
                     load: None,
+                    fixing_note: None,
                 },
                 true,
             );
@@ -932,7 +1328,7 @@ mod tests {
     fn before_any_check_has_finished_the_page_says_so() {
         let mut snapshot = board(vec![agent("T", WG, Health::Unknown, 0, None)]);
         snapshot.updated_at = None;
-        let html = answer(&snapshot, &Busy::default(), 105);
+        let html = answer(&snapshot, &Busy::default(), 105, &[]);
         assert!(html.contains("No check has finished yet."), "{html}");
         assert!(html.contains("Status unknown"), "{html}");
     }

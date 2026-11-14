@@ -407,6 +407,7 @@ mod tests {
             reading: None,
             problem: None,
             in_sync: true,
+            note: None,
         }
     }
 

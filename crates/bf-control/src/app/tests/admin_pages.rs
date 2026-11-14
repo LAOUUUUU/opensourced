@@ -887,8 +887,12 @@ async fn every_admin_page_carries_the_app_headers_and_loads_nothing_from_outside
         assert_secure(&r);
         assert!(!r.body.contains("<script"), "{path}");
         assert!(!r.body.contains("style="), "{path}");
+        // The one address out is a plain link to the public source, in the menu and the footer.
+        let link = "href=\"https://github.com/LAOUUUUU/opensourced\" rel=\"noopener noreferrer\"";
+        assert_eq!(r.body.matches(link).count(), 2, "{path}: the source link");
+        let body = r.body.replace(link, "");
         assert!(
-            !r.body.contains("http://") && !r.body.contains("https://"),
+            !body.contains("http://") && !body.contains("https://"),
             "{path}: nothing from outside"
         );
         assert!(

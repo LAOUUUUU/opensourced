@@ -1,5 +1,5 @@
 # Database schema
-**Status:** Schema version 5: version 1 in `crates/bf-control/src/store.rs` (`SCHEMA_1`), version 2 (sign-in) in `crates/bf-control/src/signin.rs` (`SCHEMA_2`), version 3 (the node registry) in `crates/bf-control/src/nodes.rs` (`SCHEMA_3`), version 4 (kept sessions) in `crates/bf-control/src/signin.rs` (`SCHEMA_4`), version 5 (a protocol per node) and version 6 (where each server is) in `crates/bf-control/src/nodes.rs` (`SCHEMA_5`, `SCHEMA_6`). The deployed site runs version 3; version 4 is built and tested, not deployed. The agent keeps its own, separate JSON file, `peers.json` (shape in `specs/agent.md`).
+**Status:** Schema version 7: version 1 in `crates/bf-control/src/store.rs` (`SCHEMA_1`), version 2 (sign-in) in `crates/bf-control/src/signin.rs` (`SCHEMA_2`), version 3 (the node registry) in `crates/bf-control/src/nodes.rs` (`SCHEMA_3`), version 4 (kept sessions) in `crates/bf-control/src/signin.rs` (`SCHEMA_4`), version 5 (a protocol per node), version 6 (where each server is) and version 7 (a maintenance note and the uptime history, `SCHEMA_7`) in `crates/bf-control/src/nodes.rs` (`SCHEMA_5`, `SCHEMA_6`). The deployed site runs version 3; version 4 is built and tested, not deployed. The agent keeps its own, separate JSON file, `peers.json` (shape in `specs/agent.md`).
 
 The control program's SQLite database. The path is `BC_DB` (default `/var/lib/barely-free/control.db`). Every table is `STRICT`, and foreign keys are switched on for each connection. Times are Unix seconds (UTC). Only `device_limit`, `tracker_filter`, `published_list.id`, `accounts.is_admin`, `accounts.admin_fail_count` and `mail_log.kind` have CHECK constraints; the code never writes a negative time or version, and reads a negative one as 0.
 
@@ -135,8 +135,22 @@ The registry of VPN nodes the poller visits. A node's signing secret and pinned 
 | `created_at` | INTEGER, not null | |
 | `lat` | REAL | the server's latitude in degrees, -90 to 90 (CHECK), for "Closest to you" (decision 014); set by `node set-location`. Null until set (version 6) |
 | `lon` | REAL | its longitude, -180 to 180 (CHECK); set or null together with `lat` (CHECK) |
+| `note` | TEXT | why a disabled node is out, for the status page ("back at 20:00"): 1 to 100 characters (CHECK on the length; the code also refuses spaces only, control and text-reordering characters). Set by `node disable --note`, cleared by `node enable` and by `node disable` without a note. Null otherwise (version 7) |
 
 The table is `STRICT`. Removing a node deletes its row and leaves its files.
+
+### `uptime_hours` (added in version 7)
+The status page's uptime history: how many passes, in each hour, a server was working or down. Written only by the poller after each pass (`Store::record_uptime`); read as a 30-day summary. It holds server health only: no account, device or address. It is in the nightly backup like the rest of the file.
+
+| Column | Type | Notes |
+|---|---|---|
+| `title` | TEXT, not null | the server's title as the public pages show it ("Toronto") |
+| `place` | TEXT, not null | its place ("Canada"); with `title` it is the server (the agents of one machine share both) |
+| `hour` | INTEGER, not null | Unix seconds divided by 3600, UTC (CHECK 0 or more) |
+| `up` | INTEGER, not null, default 0 | passes in that hour in which some agent was online (the word Up or Overloaded) (CHECK 0 or more) |
+| `down` | INTEGER, not null, default 0 | passes in which the word was Down (CHECK 0 or more) |
+
+Primary key `(title, place, hour)`; the table is `STRICT, WITHOUT ROWID`. A server that is being fixed, or whose state is unknown, adds nothing. Rows older than 90 days are deleted once a day (`Store::prune_uptime`). Rationale: [decision 025](decisions/025-server-status-page.md), spec `specs/status-history.md`.
 
 ## Relationships
 - An account has 0 to `device_limit` devices; a device belongs to exactly one account. Deleting an account would delete its devices (no command does that yet).
@@ -156,4 +170,5 @@ The table is `STRICT`. Removing a node deletes its row and leaves its files.
 - **Version 4** (2026-11-10, `upgrade_to_4`): `ALTER TABLE sessions ADD COLUMN keep INTEGER NOT NULL DEFAULT 0 CHECK (keep IN (0, 1))`, then `PRAGMA user_version = 4`, in one Immediate transaction that looks at the version again first. Every existing session gets 0 and keeps its expiry, so it behaves exactly as before. After this, a version-3 binary refuses the database: a rollback needs the database backup too.
 - **Version 5** (2026-11-10, `upgrade_to_5`): the `nodes` table is rebuilt (SQLite cannot drop a UNIQUE): `protocol` is added (null for every existing node) and `address` is unique only together with `protocol`. Every row and id is copied and the table's `AUTOINCREMENT` counter is carried over, so no node id is given out twice. One Immediate transaction that looks at the version again first. A version-4 binary refuses the result.
 - **Version 6** (2026-11-11, `upgrade_to_6`): `ALTER TABLE nodes ADD COLUMN lat REAL ...` and `lon REAL ...` with their CHECKs, then `PRAGMA user_version = 6`, in one Immediate transaction that looks at the version again first. Every node starts with no location; the published list does not change. A version-5 binary refuses the result.
+- **Version 7** (2026-11-14, `upgrade_to_7`): `ALTER TABLE nodes ADD COLUMN note TEXT CHECK (...)` and `CREATE TABLE uptime_hours (...)`, then `PRAGMA user_version = 7`, in one Immediate transaction that looks at the version again first. Every node starts with no note and the history starts empty. An older program refuses the file (`NewerSchema`), so `deploy/deploy-web.sh` copies the database aside first (`control.db.before-deploy-<time>`); that copy and the previous binary are the way back.
 - Planned: a second address per device for the Restricted-network profile (step 6).

@@ -309,7 +309,7 @@ mod tests {
         let db = filled(&dir);
         let out = dir.join("copy.db");
         let copy = backup(&db, &out).unwrap();
-        assert_eq!(copy.schema_version, 6);
+        assert_eq!(copy.schema_version, 7);
         assert_eq!(copy.bytes, std::fs::metadata(&out).unwrap().len());
         assert!(copy.bytes > 0);
         assert_eq!(snapshot(&out), snapshot(&db));
@@ -551,7 +551,7 @@ mod tests {
         let db = filled(&dir);
         let good = dir.join("good.db");
         backup(&db, &good).unwrap();
-        assert_eq!(checked(&good), Ok(6));
+        assert_eq!(checked(&good), Ok(7));
         // Scribble over the second page, where the tables' rows are.
         let mut bytes = std::fs::read(&good).unwrap();
         let page = 4096;

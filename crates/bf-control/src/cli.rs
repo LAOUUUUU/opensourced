@@ -144,7 +144,7 @@ usage:
   bf-control node set-location <name> <lat>,<lon>  where its server is, in degrees: 43.65,-79.38
   bf-control node list
   bf-control node enable <name>
-  bf-control node disable <name>
+  bf-control node disable <name> [--note TEXT]   switch it off for repair: the website says it is being fixed, with the note
   bf-control node remove <name>
   bf-control node check <name>                    ask the node for its status, the way the poller does
   bf-control list raise <n>                       make the next list's version higher than n
@@ -400,7 +400,11 @@ fn node_command(
                     node.address,
                     node.protocol
                         .map_or("protocol not set", crate::protocol::Protocol::as_str),
-                    if node.enabled { "enabled" } else { "disabled" },
+                    match (node.enabled, &node.note) {
+                        (true, _) => "enabled".to_string(),
+                        (false, None) => "disabled".to_string(),
+                        (false, Some(note)) => format!("disabled ({note})"),
+                    },
                     node.title,
                     node.place
                 )?;
@@ -425,10 +429,18 @@ fn node_command(
             writeln!(out, "{name} is enabled")?;
         }
         ["disable", name] => {
-            Store::open(db)?.set_node_enabled(text(name)?, false)?;
+            Store::open(db)?.disable_node(text(name)?, None)?;
             writeln!(
                 out,
                 "{name} is disabled, so the website says it is being fixed"
+            )?;
+        }
+        ["disable", name, "--note", note] => {
+            // The note is free text: it may start with a dash, so it is not read as an option.
+            Store::open(db)?.disable_node(text(name)?, Some(note))?;
+            writeln!(
+                out,
+                "{name} is disabled, so the website says it is being fixed: {note}"
             )?;
         }
         ["remove", name] => {
@@ -1347,7 +1359,7 @@ mod tests {
         assert_eq!(
             said,
             format!(
-                "backup written to {}: schema version 6, {bytes} bytes\n",
+                "backup written to {}: schema version 7, {bytes} bytes\n",
                 out.display()
             )
         );

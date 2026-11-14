@@ -32,6 +32,7 @@ pub mod seen;
 pub mod signin;
 pub mod status;
 pub mod store;
+pub mod uptime;
 pub mod web;
 pub mod wgconf;
 

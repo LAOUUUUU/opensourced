@@ -201,3 +201,49 @@ async fn it_follows_the_chosen_theme_and_a_site_without_sign_in_has_no_account_l
 fn the_theme_buttons_on_the_page_come_back_to_it() {
     assert!(STATUS.contains("name=\"back\" value=\"/status\""));
 }
+
+#[tokio::test]
+async fn a_being_fixed_server_shows_its_note_on_the_page() {
+    let mut paris = agent("Paris", "France", Health::BeingFixed, 0, None);
+    paris.note = Some("back at 20:00 & <soon>".to_string());
+    let body = status_of(vec![
+        agent("Toronto", "Canada", Health::Online, 1, None),
+        paris,
+    ])
+    .await;
+    assert!(
+        body.contains("<p class=\"note\">Paris: back at 20:00 &amp; &lt;soon&gt;</p>"),
+        "{body}"
+    );
+    assert!(!body.contains("<soon>"), "{body}");
+}
+
+#[tokio::test]
+async fn the_uptime_the_poller_worked_out_is_listed_on_the_page() {
+    let board = Board::new();
+    board.set_for_test(
+        vec![agent("Toronto", "Canada", Health::Online, 1, None)],
+        1_000,
+    );
+    board.set_uptime(vec![crate::uptime::Uptime {
+        title: "Toronto".to_string(),
+        place: "Canada".to_string(),
+        up: 998,
+        down: 2,
+        first_hour: 0,
+    }]);
+    let site = Site {
+        app: None,
+        live: Some(Live {
+            board,
+            clock: Arc::new(|| 1_004),
+            busy: Busy::default(),
+        }),
+    };
+    let (status, _, body) = fetch(site, "GET", &[]).await;
+    assert_eq!(status, 200);
+    assert!(
+        body.contains("<li><strong>Toronto</strong>: 99.8% over 1 day</li>"),
+        "{body}"
+    );
+}

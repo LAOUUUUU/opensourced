@@ -17,7 +17,7 @@ const POOL_LAST: Ipv4Addr = Ipv4Addr::new(10, 77, 255, 254);
 
 /// The schema this program reads and writes. A database with a higher number was made
 /// by a newer program and is refused.
-const SCHEMA_VERSION: u32 = 6;
+const SCHEMA_VERSION: u32 = 7;
 
 /// Why the store could not do what was asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +63,9 @@ pub enum StoreError {
     /// A node title or place is empty, longer than 40 characters, or has control
     /// characters or characters that reorder or hide text.
     BadNodeText,
+    /// A node's maintenance note is empty, only spaces, longer than 100 characters, or has
+    /// control characters or characters that reorder or hide text.
+    BadNodeNote,
     /// A node with this name or this address is already registered.
     NodeTaken,
     NoSuchNode,
@@ -131,6 +134,10 @@ impl std::fmt::Display for StoreError {
             StoreError::BadNodeText => write!(
                 f,
                 "a node title or place is 1 to 40 characters with no control characters or text-reordering marks"
+            ),
+            StoreError::BadNodeNote => write!(
+                f,
+                "a maintenance note is 1 to 100 characters, not only spaces, with no control characters or text-reordering marks"
             ),
             StoreError::NodeTaken => {
                 write!(
@@ -836,7 +843,25 @@ fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
     upgrade_to_3(conn)?;
     upgrade_to_4(conn)?;
     upgrade_to_5(conn)?;
-    upgrade_to_6(conn)
+    upgrade_to_6(conn)?;
+    upgrade_to_7(conn)
+}
+
+/// Version 6 to 7: a maintenance note for a node and the uptime history table. Immediate, and
+/// look again inside it, like version 2.
+fn upgrade_to_7(conn: &mut Connection) -> Result<(), StoreError> {
+    let found: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if found >= 7 {
+        return Ok(());
+    }
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let now_found: u32 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if now_found < 7 {
+        tx.execute_batch(crate::nodes::SCHEMA_7)?;
+        tx.pragma_update(None, "user_version", 7)?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 /// Version 5 to 6: where each node's server is. Immediate, and look again inside it, like
@@ -1213,11 +1238,11 @@ mod tests {
         let path = temp_db("schema");
 
         let store = Store::open(&path).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         drop(store);
 
         let again = Store::open(&path).unwrap();
-        assert_eq!(again.schema_version().unwrap(), 6);
+        assert_eq!(again.schema_version().unwrap(), 7);
     }
 
     #[test]
@@ -1769,17 +1794,17 @@ mod tests {
         let path = temp_db("newer");
         Store::open(&path).unwrap();
         let conn = Connection::open(&path).unwrap();
-        conn.pragma_update(None, "user_version", 7).unwrap();
+        conn.pragma_update(None, "user_version", 8).unwrap();
         drop(conn);
 
         assert!(matches!(
             Store::open(&path),
-            Err(StoreError::NewerSchema(7))
+            Err(StoreError::NewerSchema(8))
         ));
         assert!(
-            StoreError::NewerSchema(7)
+            StoreError::NewerSchema(8)
                 .to_string()
-                .contains("newer than this program's 6")
+                .contains("newer than this program's 7")
         );
     }
 
@@ -1801,7 +1826,7 @@ mod tests {
 
         let store = Store::open(&path).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         let (keep, created, expires): (i64, i64, i64) = store
             .conn
             .query_row(
@@ -1825,7 +1850,7 @@ mod tests {
         drop(store);
 
         let again = Store::open(&path).unwrap();
-        assert_eq!(again.schema_version().unwrap(), 6);
+        assert_eq!(again.schema_version().unwrap(), 7);
         let rows: i64 = again
             .conn
             .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
@@ -1863,7 +1888,7 @@ mod tests {
 
         let store = Store::open(&path).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         let accounts = store.accounts().unwrap();
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].label, "lao");
@@ -1899,7 +1924,7 @@ mod tests {
         drop(store);
 
         let again = Store::open(&path).unwrap();
-        assert_eq!(again.schema_version().unwrap(), 6);
+        assert_eq!(again.schema_version().unwrap(), 7);
         assert_eq!(again.accounts().unwrap().len(), 1);
     }
 

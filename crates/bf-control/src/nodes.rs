@@ -45,6 +45,20 @@ ALTER TABLE nodes ADD COLUMN lon REAL
     CHECK ((lat IS NULL) = (lon IS NULL) AND (lon IS NULL OR lon BETWEEN -180 AND 180));
 ";
 
+/// Version 7: a maintenance note for a disabled node, and the status page's uptime history
+/// (hourly counts of passes in which a server was working or down, per server).
+pub(crate) const SCHEMA_7: &str = "
+ALTER TABLE nodes ADD COLUMN note TEXT CHECK (note IS NULL OR length(note) BETWEEN 1 AND 100);
+CREATE TABLE uptime_hours (
+    title TEXT NOT NULL,
+    place TEXT NOT NULL,
+    hour  INTEGER NOT NULL CHECK (hour >= 0),
+    up    INTEGER NOT NULL DEFAULT 0 CHECK (up >= 0),
+    down  INTEGER NOT NULL DEFAULT 0 CHECK (down >= 0),
+    PRIMARY KEY (title, place, hour)
+) STRICT, WITHOUT ROWID;
+";
+
 use std::net::SocketAddr;
 
 use rusqlite::{OptionalExtension, TransactionBehavior};
@@ -75,6 +89,9 @@ pub struct Node {
     /// Where the server is (`node set-location`), for "Closest to you". `None` until set:
     /// such a server is treated as further than any whose location is known.
     pub location: Option<Location>,
+    /// Why it is disabled, for the status page ("back at 20:00"); set by `disable --note`,
+    /// cleared by `enable`.
+    pub note: Option<String>,
 }
 
 /// The highest version `raise_version_floor` accepts. A version that big is a typo or a
@@ -115,7 +132,23 @@ fn check_node_text(text: &str) -> Result<(), StoreError> {
 }
 
 const NODE_COLUMNS: &str =
-    "id, name, title, place, address, enabled, created_at, protocol, lat, lon";
+    "id, name, title, place, address, enabled, created_at, protocol, lat, lon, note";
+
+/// The longest maintenance note, in characters.
+pub const MAX_NOTE_CHARS: usize = 100;
+
+/// A maintenance note: 1 to 100 characters, not only spaces, no control characters and none
+/// that reorder or hide text. It is public text, so it is held to the same plain-text rule as
+/// a node's title.
+pub fn check_node_note(text: &str) -> Result<(), StoreError> {
+    if text.trim().is_empty()
+        || text.chars().count() > MAX_NOTE_CHARS
+        || text.chars().any(is_unsafe_in_text)
+    {
+        return Err(StoreError::BadNodeNote);
+    }
+    Ok(())
+}
 
 fn node_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Node> {
     let address: String = row.get(4)?;
@@ -150,6 +183,7 @@ fn node_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Node> {
             (Some(lat), Some(lon)) => Location::new(lat, lon),
             _ => None,
         },
+        note: row.get(10)?,
     })
 }
 
@@ -293,10 +327,28 @@ impl Store {
         Ok(())
     }
 
+    /// Enables or disables a node. Either way an old maintenance note goes (see
+    /// [`Store::disable_node`] to disable with one).
     pub fn set_node_enabled(&mut self, name: &str, enabled: bool) -> Result<(), StoreError> {
         let changed = self.conn.execute(
-            "UPDATE nodes SET enabled = ?2 WHERE name = ?1",
+            "UPDATE nodes SET enabled = ?2, note = NULL WHERE name = ?1",
             rusqlite::params![name, enabled],
+        )?;
+        if changed == 0 {
+            return Err(StoreError::NoSuchNode);
+        }
+        Ok(())
+    }
+
+    /// Disables a node (the poller stops visiting it and the website says it is being fixed),
+    /// with an optional note for the status page. Without a note, an old one is cleared.
+    pub fn disable_node(&mut self, name: &str, note: Option<&str>) -> Result<(), StoreError> {
+        if let Some(text) = note {
+            check_node_note(text)?;
+        }
+        let changed = self.conn.execute(
+            "UPDATE nodes SET enabled = 0, note = ?2 WHERE name = ?1",
+            rusqlite::params![name, note],
         )?;
         if changed == 0 {
             return Err(StoreError::NoSuchNode);
@@ -414,7 +466,7 @@ mod tests {
 
         let mut store = Store::open(&path).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         assert_eq!(store.accounts().unwrap().len(), 1);
         assert_eq!(store.nodes().unwrap(), Vec::new());
         assert_eq!(store.publish(2_000).unwrap().version, 7);
@@ -422,7 +474,7 @@ mod tests {
         drop(store);
 
         let again = Store::open(&path).unwrap();
-        assert_eq!(again.schema_version().unwrap(), 6);
+        assert_eq!(again.schema_version().unwrap(), 7);
         assert_eq!(
             again.nodes().unwrap().len(),
             1,
@@ -453,7 +505,8 @@ mod tests {
                 "enabled",
                 "created_at",
                 "lat",
-                "lon"
+                "lon",
+                "note"
             ]
         );
         let strict: bool = conn
@@ -494,7 +547,7 @@ mod tests {
 
         let mut store = Store::open(&path).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         let nodes = store.nodes().unwrap();
         let summary: Vec<_> = nodes
             .iter()
@@ -715,7 +768,7 @@ mod tests {
 
         let mut store = Store::open(&path).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         let nodes = store.nodes().unwrap();
         assert_eq!(
             nodes
@@ -734,7 +787,7 @@ mod tests {
         );
         drop(store);
         let again = Store::open(&path).unwrap();
-        assert_eq!(again.schema_version().unwrap(), 6, "upgraded once");
+        assert_eq!(again.schema_version().unwrap(), 7, "upgraded once");
         assert_eq!(again.nodes().unwrap().len(), 2);
     }
 
@@ -1202,5 +1255,150 @@ mod tests {
         let final_list = writer.publish(1_000).unwrap();
         assert_eq!(final_list.peers.len(), 25);
         assert!(seen.iter().all(|(v, _)| *v <= final_list.version));
+    }
+
+    // ---- schema 7: the maintenance note ----
+
+    #[test]
+    fn a_version_6_database_is_upgraded_to_7_with_no_notes_and_an_empty_history_table() {
+        let path = temp_db("upgrade7");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(crate::store::SCHEMA_1).unwrap();
+        conn.execute_batch(crate::signin::SCHEMA_2).unwrap();
+        conn.execute_batch(SCHEMA_3).unwrap();
+        conn.execute_batch(crate::signin::SCHEMA_4).unwrap();
+        conn.execute_batch(SCHEMA_5).unwrap();
+        conn.execute_batch(SCHEMA_6).unwrap();
+        conn.execute_batch(
+            "INSERT INTO nodes (id, name, title, place, address, protocol, enabled, created_at)
+                 VALUES (2, 'toronto', 'Toronto', 'Canada', '192.0.2.7:8443', 'amneziawg', 0, 1000);
+             INSERT INTO published_list (id, version, content) VALUES (1, 9, '[]');",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 6).unwrap();
+        drop(conn);
+
+        let mut store = Store::open(&path).unwrap();
+
+        assert_eq!(store.schema_version().unwrap(), 7);
+        let nodes = store.nodes().unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(
+            (nodes[0].id, nodes[0].enabled, &nodes[0].note),
+            (2, false, &None)
+        );
+        assert_eq!(
+            store.publish(2_000).unwrap().version,
+            9,
+            "the list is untouched"
+        );
+        let tables: Vec<String> = {
+            let mut q = store
+                .conn
+                .prepare(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'uptime_hours'",
+                )
+                .unwrap();
+            q.query_map([], |r| r.get(0))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        assert_eq!(tables, ["uptime_hours"], "the history table exists");
+        let rows: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM uptime_hours", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
+        drop(store);
+        let again = Store::open(&path).unwrap();
+        assert_eq!(again.schema_version().unwrap(), 7, "upgraded once");
+        assert_eq!(again.nodes().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_note_goes_with_a_disabled_node_and_enabling_or_disabling_without_one_clears_it() {
+        let mut store = Store::open_in_memory().unwrap();
+        toronto(&mut store);
+
+        store
+            .disable_node("toronto", Some("back at 20:00"))
+            .unwrap();
+        let node = store.node("toronto").unwrap().unwrap();
+        assert!(!node.enabled);
+        assert_eq!(node.note.as_deref(), Some("back at 20:00"));
+
+        store.set_node_enabled("toronto", true).unwrap();
+        let node = store.node("toronto").unwrap().unwrap();
+        assert!(node.enabled);
+        assert_eq!(node.note, None, "enabling clears the note");
+
+        store
+            .disable_node("toronto", Some("kernel update"))
+            .unwrap();
+        store.disable_node("toronto", None).unwrap();
+        assert_eq!(
+            store.node("toronto").unwrap().unwrap().note,
+            None,
+            "disabling again without a note clears the old one"
+        );
+        store.disable_node("toronto", Some("new words")).unwrap();
+        store.disable_node("toronto", Some("newer words")).unwrap();
+        assert_eq!(
+            store.node("toronto").unwrap().unwrap().note.as_deref(),
+            Some("newer words")
+        );
+    }
+
+    #[test]
+    fn a_note_is_1_to_100_characters_without_control_or_reordering_characters() {
+        let mut store = Store::open_in_memory().unwrap();
+        toronto(&mut store);
+        let hundred = "n".repeat(100);
+        let too_long = "n".repeat(101);
+        for bad in [
+            "",
+            "   ",
+            "\t",
+            too_long.as_str(),
+            "a\nb",
+            "a\u{0}b",
+            "a\u{202e}b",
+            "a\u{200b}b",
+        ] {
+            assert_eq!(
+                store.disable_node("toronto", Some(bad)),
+                Err(StoreError::BadNodeNote),
+                "{bad:?}"
+            );
+        }
+        assert!(
+            store.node("toronto").unwrap().unwrap().enabled,
+            "a refused note changes nothing"
+        );
+        store.disable_node("toronto", Some(&hundred)).unwrap();
+        assert_eq!(
+            store.node("toronto").unwrap().unwrap().note.as_deref(),
+            Some(hundred.as_str())
+        );
+        store
+            .disable_node(
+                "toronto",
+                Some("Back at 20:00 \u{2014} d\u{e9}j\u{e0} vu & <b>"),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn a_note_for_a_node_nobody_registered_is_refused() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert_eq!(
+            store.disable_node("nowhere", Some("hello")),
+            Err(StoreError::NoSuchNode)
+        );
+        assert_eq!(
+            store.disable_node("nowhere", None),
+            Err(StoreError::NoSuchNode)
+        );
     }
 }

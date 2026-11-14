@@ -465,6 +465,82 @@ fn a_location_that_is_not_lat_comma_lon_or_a_name_nobody_has_is_refused() {
 // ---- enable, disable, remove ----
 
 #[test]
+fn disable_with_a_note_stores_it_and_the_list_shows_it_and_enable_clears_it() {
+    let env = env();
+    env.node("toronto", 0x11);
+
+    let (code, said, err) = env.run(&["node", "disable", "toronto", "--note", "back at 20:00"]);
+    assert_eq!(code, 0, "{err}");
+    assert!(said.contains("being fixed"), "{said}");
+    assert!(
+        said.contains("back at 20:00"),
+        "it repeats the note: {said}"
+    );
+    assert_eq!(
+        env.store()
+            .node("toronto")
+            .unwrap()
+            .unwrap()
+            .note
+            .as_deref(),
+        Some("back at 20:00")
+    );
+    let (_, out, _) = env.run(&["node", "list"]);
+    assert!(out.contains("disabled (back at 20:00)"), "{out}");
+
+    assert_eq!(env.run(&["node", "enable", "toronto"]).0, 0);
+    assert_eq!(env.store().node("toronto").unwrap().unwrap().note, None);
+    let (_, out, _) = env.run(&["node", "list"]);
+    assert!(!out.contains("back at 20:00"), "{out}");
+}
+
+#[test]
+fn disabling_again_without_a_note_clears_the_old_one() {
+    let env = env();
+    env.node("toronto", 0x11);
+    assert_eq!(
+        env.run(&["node", "disable", "toronto", "--note", "kernel update"])
+            .0,
+        0
+    );
+    assert_eq!(env.run(&["node", "disable", "toronto"]).0, 0);
+    assert_eq!(env.store().node("toronto").unwrap().unwrap().note, None);
+}
+
+#[test]
+fn a_note_that_breaks_a_rule_is_refused_with_the_reason_and_nothing_changes() {
+    let env = env();
+    env.node("toronto", 0x11);
+    let long = "n".repeat(101);
+    for bad in ["", "   ", long.as_str(), "a\nb"] {
+        let (code, _, err) = env.run(&["node", "disable", "toronto", "--note", bad]);
+        assert_eq!(code, 1, "{bad:?}");
+        assert!(err.contains("1 to 100 characters"), "{bad:?}: {err}");
+    }
+    assert!(env.store().node("toronto").unwrap().unwrap().enabled);
+}
+
+#[test]
+fn a_node_command_with_a_note_in_the_wrong_place_prints_the_usage() {
+    let env = env();
+    env.node("toronto", 0x11);
+    for args in [
+        vec!["node", "disable", "toronto", "--note"],
+        vec!["node", "disable", "toronto", "--notes", "x"],
+        vec!["node", "disable", "toronto", "x"],
+        vec!["node", "enable", "toronto", "--note", "x"],
+    ] {
+        let (code, _, err) = env.run(&args);
+        assert_eq!(code, 2, "{args:?}");
+        assert!(
+            err.contains("node disable <name> [--note TEXT]"),
+            "{args:?}: {err}"
+        );
+    }
+    assert!(env.store().node("toronto").unwrap().unwrap().enabled);
+}
+
+#[test]
 fn a_node_is_disabled_enabled_and_removed_and_a_name_nobody_has_is_refused() {
     let env = env();
     env.node("toronto", 0x11);

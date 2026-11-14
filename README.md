@@ -1,6 +1,6 @@
 # Barely-free: public source copy
 
-This is a public, scrubbed copy of the source of [Barely-free](https://barely-free.com), a free VPN built on WireGuard (this copy is version 0.5.0). It holds the Rust code (the node agent `bf-agent`, the control program and website `bf-control`, and the shared library `bf-common`), the deploy scripts and the design notes.
+This is a public, scrubbed copy of the source of [Barely-free](https://barely-free.com), a free VPN built on WireGuard (this copy is version 0.6.0). It holds the Rust code (the node agent `bf-agent`, the control program and website `bf-control`, and the shared library `bf-common`), the deploy scripts and the design notes.
 
 - Addresses, host names and personal details are placeholders (`<vm ip>`, `<your-tailnet>.ts.net`, and documentation-range addresses in scripts and tests). **This is not a drop-in deployment of the live service**; the runbooks below describe how the live one is set up.
 - The private working notes, research briefs and specs are not part of this copy, so a few links below point at files that are not here.
@@ -11,7 +11,7 @@ This is a public, scrubbed copy of the source of [Barely-free](https://barely-fr
 
 # Barely-free
 
-A free VPN for anybody, on WireGuard, written in Rust. This is the ground-up rebuild of the old Python build (`happ-vpn`), which keeps serving its 35 keys until this one replaces it.
+A free VPN for anybody, on WireGuard, written in Rust. This is the ground-up rebuild of an older Python build, which this one replaces.
 
 **Status (2026-11-10):** step 1 of 7 is done, and step 2 is built: `bf-control` has a database, an admin command line (accounts, devices, kicks, the peer list), sign-in pages (off until configured) and a **node poller** that keeps the nodes' WireGuard in step with the database and shows each server's state on the front page. The poller, sign-in and the add-a-device page are deployed to the web VM and work with both nodes; release 0.3.0 (the admin panel, cookies, the plainer design and the kick fix) is deployed there too, and the **admin panel** (`/admin`) stays hidden until an account is made admin and given its password. The node agent `bf-agent` runs on both VPN nodes (Dallas and Toronto). The public website (a closed-beta front page, served by `bf-control`) runs on the web VM and is waiting only for DNS to go public.
 
@@ -102,6 +102,9 @@ Before the new program is put in place, `deploy-web.sh` stops the service and co
 
 What is left before it is public, and how the tunnel is wired: `docs/modules/bf-control.md`.
 
+### Source code link (built, not deployed)
+Every page's menu and footer links "Source code" to the public snapshot of the code, <https://github.com/LAOUUUUU/opensourced> (scrubbed: placeholders for addresses and names, no private notes or history). The privacy page names GitHub as a place a visitor only reaches by following the link. Details: `docs/modules/bf-control.md` ("Link to the public source").
+
 ### Legal, help and security pages (built, not deployed)
 Six pages, in the same plain style and with no scripts:
 - `/terms`, the terms of use;
@@ -170,7 +173,7 @@ bf-control node add toronto <node ip>:8443 Toronto Canada --protocol amneziawg  
 bf-control node set-protocol toronto amneziawg   # for a node registered before protocols (schema 5)
 bf-control node check toronto      # one signed status request, the way the poller makes it
 bf-control node list               # names, addresses, and whether each node's two files are usable
-bf-control node disable toronto    # the site then says "Being fixed"; enable brings it back; remove retires it
+bf-control node disable toronto --note "back at 20:00"   # the site then says "Being fixed" and shows the note (--note is optional); enable brings it back and clears it; remove retires it
 bf-control list raise 9            # only if a node holds a newer list than a restored database
 ```
 
@@ -195,7 +198,7 @@ Every server offers WireGuard and AmneziaWG. When adding a device you pick the s
 To switch it on, **you** run these in this order (each script is safe to run again):
 
 ```bash
-# 1. The website. It copies the database aside, then upgrades it to schema 6 (an older build cannot read it afterwards).
+# 1. The website. It copies the database aside, then upgrades it to schema 7 (an older build cannot read it afterwards).
 deploy/deploy-web.sh root@web.<your-tailnet>.ts.net
 #    then on the VM, at once: until Toronto's agent has a protocol, no device can be added.
 bf-control node set-protocol toronto amneziawg
@@ -315,6 +318,8 @@ If one of a server's two agents (WireGuard or AmneziaWG) is down or disabled and
 
 The page gives the word for each server, and for a working one its **load**: how close it is to being overloaded, in percent, rounded down to the nearest 10 (100% means Overloaded, so a server one device under the line shows 90%). It is worked out from the same two numbers as the Overloaded rule (devices online over `BC_NODE_BUSY_ONLINE`, load over `BC_NODE_BUSY_LOAD`, whichever is higher). There are no exact device counts, no raw load figures and no node names, and the front page's cards stay words only. It is not cached, not in the sitemap, and marked `noindex`. Decision `docs/decisions/025-server-status-page.md`, spec `specs/status-page.md`, details in `docs/modules/bf-control.md` ("Server status page"). No setting or database change; deploy with `deploy/deploy-web.sh`.
 
+**Maintenance note and uptime history (schema 7, built, not deployed).** `bf-control node disable <name> --note "back at 20:00"` puts that line (1 to 100 characters) under a server that reads Being fixed; `node enable` clears it. Under the cards the page also lists each server's **uptime**: "Toronto 99.8% over 12 days". The poller adds every pass to an hourly count in the database (`uptime_hours`; Being fixed and Status unknown count as nothing), the percentage is up over up-plus-down for the last 30 days **rounded down to 0.1%** (100.0% only if nothing was down), and rows older than 90 days are deleted. The history starts empty at deploy time, so the page says "over N days" until 30 days have built up. Only an outage the poller saw is counted: a time the website itself was down is not. The deploy upgrades the database to schema 7, so `deploy-web.sh` copies it aside first. Decision `docs/decisions/026-uptime-history-and-maintenance-note.md`, spec `specs/status-history.md`.
+
 ## When each device last connected (built, not deployed)
 The account page shows, for each device, whether it is connected now and through which server and app, or when it last was ("Last connected through Dallas (AmneziaWG), 3 hours ago"). It comes from the servers' own handshake times, which the poller reads every 10 seconds and keeps only in memory. Details: `docs/modules/bf-control.md`.
 
@@ -386,7 +391,7 @@ bf-control account set-email 1 new@example.com          # give or change an acco
 ```
 
 ### Open sign-up (deployed, OPEN since 2026-11-12)
-Set `BC_OPEN_SIGNUP=1` in the service's environment and anyone can make an account: they type any email address, receive the six-digit code, and typing it creates the account (label `member-<id>`, 3 devices) and signs them in. Unset or `0` keeps the closed beta; any other value keeps sign-in off and the log says why. Each UTC day at most **60** code requests for new addresses are taken (the rest of the 90 emails a day is kept for people who already have accounts) and at most **20** new accounts are made; past either, a new address sees "Sign-ups are full for today" and members are not affected. The front page and the sign-in pages say "closed beta" only while it is off. The terms page and the abuse contact it promised are built (see "Legal, help and security pages" above), not deployed yet. Details: `specs/open-signup.md`, decision `docs/decisions/010-open-sign-up.md`.
+Set `BC_OPEN_SIGNUP=1` in the service's environment and anyone can make an account: they type any email address, receive the six-digit code, and typing it creates the account (label `member-<id>`, 3 devices) and signs them in. Unset or `0` keeps the closed beta wording ("Closed beta, sign-up is not open yet"), which is how a site with sign-up off reads; with sign-up open the front page badge says "Full release · sign-up is open" and nothing on the site calls it a beta (decision 010, changed 2026-11-14); any other value keeps sign-in off and the log says why. Each UTC day at most **60** code requests for new addresses are taken (the rest of the 90 emails a day is kept for people who already have accounts) and at most **20** new accounts are made; past either, a new address sees "Sign-ups are full for today" and members are not affected. The front page and the sign-in pages say "closed beta" only while it is off. The terms page and the abuse contact it promised are built (see "Legal, help and security pages" above), not deployed yet. Details: `specs/open-signup.md`, decision `docs/decisions/010-open-sign-up.md`.
 
 Lao opened sign-up on 2026-11-12: `deploy/bf-control.service` sets `BC_OPEN_SIGNUP=1` (pinned by `tests/service_unit.rs`).
 

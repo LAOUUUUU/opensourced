@@ -216,6 +216,7 @@ mod tests {
             }),
             problem: None,
             in_sync: true,
+            note: None,
         }
     }
 

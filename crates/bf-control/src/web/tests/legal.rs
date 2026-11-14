@@ -189,9 +189,19 @@ fn every_public_page_has_the_same_header_and_footer() {
 #[test]
 fn the_header_and_footer_lead_to_help_the_account_and_every_legal_page() {
     let header = part(TERMS, "<header class=\"top\">", "</header>");
-    for target in ["/#how", "/#nodes", "/help", "/account"] {
+    for target in [
+        "/#how",
+        "/#nodes",
+        "/help",
+        "/account",
+        "https://github.com/LAOUUUUU/opensourced",
+    ] {
         assert!(header.contains(&format!("href=\"{target}\"")), "{target}");
     }
+    assert!(
+        header.contains(">Source code</a>"),
+        "the menu says what it is"
+    );
     let footer = part(TERMS, "<footer>", "</footer>");
     for target in INFO_PAGES.iter().copied().chain([
         "/cookies",
@@ -200,6 +210,7 @@ fn the_header_and_footer_lead_to_help_the_account_and_every_legal_page() {
         "/#how",
         "/#nodes",
         "/#funding",
+        "https://github.com/LAOUUUUU/opensourced",
     ]) {
         assert!(footer.contains(&format!("href=\"{target}\"")), "{target}");
     }
@@ -296,6 +307,28 @@ fn text(html: &str) -> String {
         .replace("&ldquo;", "\"")
         .replace("&rdquo;", "\"");
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn the_terms_do_not_call_the_service_a_beta_and_keep_the_limits() {
+    // 2026-11-14, Lao: "remove it from beta ... just say Full release". The sentence about
+    // limits stays, because the limits do (devices, new accounts a day, server capacity).
+    let terms = text(TERMS);
+    assert!(!terms.to_lowercase().contains("beta"), "{terms}");
+    for kept in [
+        "it has limits",
+        "how many devices an account may have",
+        "how many new accounts we take a day",
+        "A server can be full or down",
+        "We may change these limits at any time",
+    ] {
+        assert!(terms.contains(kept), "{kept}");
+    }
+    let changes = part(TERMS, "<ul class=\"changes\">", "</ul>");
+    assert!(
+        changes.contains("full release"),
+        "the change is written down in the page's own list: {changes}"
+    );
 }
 
 #[test]
@@ -421,7 +454,13 @@ fn the_privacy_policy_gives_the_numbers_the_code_uses() {
         2,
         "the code and request records"
     );
-    for who in ["Cloudflare", "Resend", "vpshostingservice.co", "Ko-fi"] {
+    for who in [
+        "Cloudflare",
+        "Resend",
+        "vpshostingservice.co",
+        "Ko-fi",
+        "GitHub",
+    ] {
         assert!(privacy.contains(who), "names {who}");
     }
     assert!(

@@ -270,8 +270,15 @@ async fn handle(State(site): State<Site>, request: Request) -> Response<Body> {
     if answer.status == 200 && request.uri().path() == "/status" {
         let now = site.live.as_ref().map_or(0, |live| (live.clock)());
         let shown = match &site.live {
-            Some(live) => crate::status::answer(&live.board.snapshot_counts(now), &live.busy, now),
-            None => crate::status::answer(&crate::status::empty_board(), &Default::default(), now),
+            Some(live) => crate::status::answer(
+                &live.board.snapshot_counts(now),
+                &live.busy,
+                now,
+                &live.board.uptime(),
+            ),
+            None => {
+                crate::status::answer(&crate::status::empty_board(), &Default::default(), now, &[])
+            }
         };
         let mut html = STATUS.replacen(CHECK_ANSWER, &shown, 1);
         if site.app.is_none() {
@@ -411,7 +418,7 @@ const OPEN_WORDING: [(&str, &str); 5] = [
     ),
     (
         "<p class=\"badge\">Closed beta &middot; sign-up is not open yet</p>",
-        "<p class=\"badge\">Beta &middot; sign-up is open</p>",
+        "<p class=\"badge\">Full release &middot; sign-up is open</p>",
     ),
     (
         SIGN_IN_LINK,
@@ -711,21 +718,36 @@ mod tests {
         from.split("</section>").next().unwrap()
     }
 
+    /// The public source repository (a scrubbed snapshot of the code), linked from every
+    /// page's menu and footer.
+    const SOURCE: &str = "https://github.com/LAOUUUUU/opensourced";
+
     #[test]
-    fn the_only_address_outside_this_site_is_the_ko_fi_donation_link() {
-        // Two links, the button in the funding section and the floating one, to one address.
+    fn the_only_addresses_outside_this_site_are_ko_fi_and_the_public_source_repository() {
+        // The front page: Ko-fi twice (the button in the funding section and the floating
+        // one), and the source repository twice (the menu and the footer).
         let outside = outside_targets(INDEX);
-        assert_eq!(outside.len(), 2, "{outside:?}");
+        assert_eq!(outside.len(), 4, "{outside:?}");
         assert!(
             outside
                 .iter()
-                .all(|target| target == "https://ko-fi.com/laouuu"),
-            "the only address out is the Ko-fi page: {outside:?}"
+                .all(|target| target == "https://ko-fi.com/laouuu" || target == SOURCE),
+            "the only addresses out are the Ko-fi page and the source repository: {outside:?}"
         );
-        assert!(outside_targets(NOT_FOUND).is_empty());
-        assert!(outside_targets(COOKIES).is_empty());
+        assert_eq!(outside.iter().filter(|t| *t == SOURCE).count(), 2);
+        // Every other page: just the source repository, in the menu and the footer.
+        assert_eq!(outside_targets(NOT_FOUND), vec![SOURCE, SOURCE]);
+        assert_eq!(outside_targets(COOKIES), vec![SOURCE, SOURCE]);
 
         for html in [INDEX, NOT_FOUND, COOKIES] {
+            assert_eq!(
+                html.matches(&format!(
+                    "<a href=\"{SOURCE}\" rel=\"noopener noreferrer\">"
+                ))
+                .count(),
+                2,
+                "each link to another site says noopener noreferrer"
+            );
             assert_eq!(runnable_scripts(html), 0, "no script that runs");
             for forbidden in ["<iframe", "<embed", "<object", "@import"] {
                 assert!(!html.contains(forbidden), "{forbidden}");
@@ -1474,6 +1496,7 @@ mod tests {
             reading: None,
             problem: Some(crate::poller::Problem::Internal),
             in_sync: false,
+            note: None,
         }
     }
 
@@ -1688,6 +1711,14 @@ mod tests {
             "the button leads in"
         );
         assert!(open.contains("sign-up is open"), "the badge says so");
+        assert!(
+            open.contains("<p class=\"badge\">Full release &middot; sign-up is open</p>"),
+            "the badge says it is a full release"
+        );
+        assert!(
+            !open.to_lowercase().contains("beta"),
+            "an open site is not a beta anywhere on the page"
+        );
         assert!(open.contains("Can anybody sign up?"));
         assert!(
             open.contains("new sign-ups stop first"),
