@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Help and support &middot; Barely-free</title>
+<meta name="description" content="How to get started with Barely-free, fix common problems, and contact support.">
+<link rel="canonical" href="https://barely-free.com/help">
+<meta property="og:site_name" content="Barely-free">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Help and support &middot; Barely-free">
+<meta property="og:description" content="How to get started with Barely-free, fix common problems, and contact support.">
+<meta property="og:url" content="https://barely-free.com/help">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
+  <nav aria-label="Main">
+    <a href="/#how">How it works</a>
+    <a href="/#nodes">Servers</a>
+    <a href="/help">Help</a>
+    <a href="/account">Account</a>
+  </nav>
+</header>
+
+<main id="main" class="narrow legal">
+  <h1>Help and support</h1>
+  <p class="lead">Most questions are answered on this page. If yours is not, see <a href="#contact">contact us</a>.</p>
+
+  <nav class="contents" aria-label="On this page">
+    <ol>
+      <li><a href="#start">Getting started</a></li>
+      <li><a href="#apps">The apps</a></li>
+      <li><a href="#problems">Common problems</a></li>
+      <li><a href="#status">Is a server down?</a></li>
+      <li><a href="#contact">Contact us</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="start">Getting started</h2>
+  <ol>
+    <li><a href="/signin">Sign in</a> with your email address, then type the six-digit code we send you. The first time, that makes your account.</li>
+    <li>On your account page, give the device a name and add it. Leave the server on &ldquo;Closest to you&rdquo; unless you want a particular one.</li>
+    <li>Install ClashMi (below) and import the profile your device page gives you under My Configs, then connect. Or use the official app shown under it, and scan its QR code or import its file.</li>
+    <li>On that device, open <a href="/check">Am I connected?</a> to make sure it works.</li>
+  </ol>
+  <p class="note">The setup is shown only once, because we never keep its private key. Save the profile or file, or scan the code, before you leave that page. Only one VPN app can be on at a time.</p>
+
+  <h2 id="apps">The apps</h2>
+  <p>We do not make our own app. We recommend ClashMi: one profile holds every server and port, and it moves to another by itself if one is blocked or down. It is open source, made by KaringX, not by us. The official WireGuard and AmneziaWG apps, made by the people who made those protocols, are likely faster but stay on one server and port; your device page offers them too. AmneziaWG is for networks that block ordinary VPNs.</p>
+  <div class="apps">
+    <div class="app">
+      <h3>ClashMi (recommended)</h3>
+      <ul class="app-links">
+        <li><a href="https://apps.apple.com/app/clash-mi/id6744321968" rel="noopener noreferrer">iPhone and iPad</a></li>
+        <li><a href="https://clashmi.app/download" rel="noopener noreferrer">Android, Mac, Windows and Linux</a></li>
+      </ul>
+    </div>
+    <div class="app">
+      <h3>WireGuard</h3>
+      <ul class="app-links">
+        <li><a href="https://apps.apple.com/app/wireguard/id1441195209" rel="noopener noreferrer">iPhone and iPad</a></li>
+        <li><a href="https://play.google.com/store/apps/details?id=com.wireguard.android" rel="noopener noreferrer">Android</a></li>
+        <li><a href="https://apps.apple.com/app/wireguard/id1451685025" rel="noopener noreferrer">Mac</a></li>
+        <li><a href="https://download.wireguard.com/windows-client/wireguard-installer.exe" rel="noopener noreferrer">Windows</a></li>
+        <li><a href="https://www.wireguard.com/install/" rel="noopener noreferrer">Linux</a></li>
+      </ul>
+    </div>
+    <div class="app">
+      <h3>AmneziaWG</h3>
+      <ul class="app-links">
+        <li><a href="https://apps.apple.com/app/amneziawg/id6478942365" rel="noopener noreferrer">iPhone, iPad and Mac</a></li>
+        <li><a href="https://play.google.com/store/apps/details?id=org.amnezia.awg" rel="noopener noreferrer">Android</a></li>
+        <li><a href="https://github.com/amnezia-vpn/amneziawg-windows-client/releases/latest" rel="noopener noreferrer">Windows</a></li>
+      </ul>
+      <p class="note">There is no Linux app.</p>
+    </div>
+  </div>
+
+  <h2 id="problems">Common problems</h2>
+  <details><summary>The code email has not come</summary><p>Look in your spam or junk folder, and give it a minute. A code works for 10 minutes. You can ask for 3 codes an hour for one email address; after that, wait an hour.</p></details>
+  <details><summary>It says &ldquo;Too many requests&rdquo;</summary><p>Too many codes were asked for in the last hour, for your email address or from your network. Wait an hour and try again.</p></details>
+  <details><summary>It says sign-ups are full for today</summary><p>We take a limited number of new accounts each day, so the servers do not fill up at once. Try again tomorrow (the day turns over at midnight UTC).</p></details>
+  <details><summary>I cannot add another device</summary><p>An account has room for three devices to start with. Remove one you no longer use on your account page. While a device of yours is switched off for breaking the <a href="/terms#rules">rules</a>, you cannot add devices.</p></details>
+  <details><summary>The tunnel is on but nothing loads</summary><p>Switch the VPN off and on again. ClashMi moves to another server or port by itself within about a minute. With an official app, if your network blocks VPNs, edit the tunnel and change the number at the end of the Endpoint line to one of the other ports your setup page listed, or add the device again with AmneziaWG. You can also add it again on the other server.</p></details>
+  <details><summary>It is slow</summary><p>Use the server closest to you. At busy times a server can be full. Barely-free is small and free, so it will not always be as fast as your own connection.</p></details>
+  <details><summary>A site blocks me or keeps asking if I am a robot</summary><p>Many people share each server&rsquo;s address, so some sites treat it with suspicion. Switch the VPN off for that site, or try the other server.</p></details>
+  <details><summary>Something broke since trackers are blocked</summary><p>On your account page, press Allow trackers next to that device. It takes effect within about a minute.</p></details>
+  <details><summary>I lost my setup, or got a new phone</summary><p>We cannot show a setup again, because we never keep its private key. Remove the old device on your account page and add a new one.</p></details>
+  <details><summary>I want to delete my account</summary><p>At the bottom of your account page, type delete and press Delete my account. It takes your devices off the servers within seconds and cannot be undone. See <a href="/privacy#rights">your rights</a>.</p></details>
+
+  <h2 id="status">Is a server down?</h2>
+  <p>The <a href="/status">status page</a> shows whether each server is up, overloaded, being fixed or down, checked every few seconds. If every server says Up and your device still will not connect, see the problems above.</p>
+
+  <h2 id="contact">Contact us</h2>
+  <p>Barely-free is run by one person and has no email address. The way to reach us will be the Barely-free community server, and its link will be here as soon as it opens.</p>
+  <p>When you get in touch, tell us:</p>
+  <ul>
+    <li>what kind of device and which app you use;</li>
+    <li>which server the device uses;</li>
+    <li>what happened, and when;</li>
+    <li>what you have already tried.</li>
+  </ul>
+  <p><strong>Never send your private key or setup file</strong>, to us or to anyone else. We will never ask for it, or for your sign-in code.</p>
+  <p>Report a security problem only to us, never where others can read it (see <a href="/security">reporting a security problem</a>). For misuse and copyright, see <a href="/abuse">reporting abuse</a>.</p>
+  <p>A reply can take a few days.</p>
+</main>
+
+<footer>
+  <nav class="site-links" aria-label="Site">
+    <div>
+      <h2>Service</h2>
+      <ul>
+        <li><a href="/#how">How it works</a></li>
+        <li><a href="/#nodes">Servers</a></li>
+        <li><a href="/check">Am I connected?</a></li>
+        <li><a href="/status">Server status</a></li>
+        <li><a href="/#funding">Costs and funding</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Help</h2>
+      <ul>
+        <li><a href="/help">Help and support</a></li>
+        <li><a href="/abuse">Report abuse</a></li>
+        <li><a href="/security">Report a security problem</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/terms">Terms of use</a></li>
+        <li><a href="/privacy">Privacy policy</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+        <li><a href="/transparency">Transparency</a></li>
+      </ul>
+    </div>
+  </nav>
+  <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  <form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="/help"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>
+</footer>
+</body>
+</html>

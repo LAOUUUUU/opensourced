@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark light">
+<meta name="format-detection" content="email=no,telephone=no">
+<title>{% block title %}Barely-free{% endblock %}</title>
+<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
+  {% block nav %}<nav aria-label="Main">
+    <a href="/#how">How it works</a>
+    <a href="/#nodes">Servers</a>
+    <a href="/help">Help</a>
+    <a href="/account">Account</a>
+  </nav>{% endblock %}
+</header>
+
+<main id="main" class="{% block main_class %}narrow{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+
+<footer>
+  {% block site_links %}<nav class="site-links" aria-label="Site">
+    <div>
+      <h2>Service</h2>
+      <ul>
+        <li><a href="/#how">How it works</a></li>
+        <li><a href="/#nodes">Servers</a></li>
+        <li><a href="/check">Am I connected?</a></li>
+        <li><a href="/status">Server status</a></li>
+        <li><a href="/#funding">Costs and funding</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Help</h2>
+      <ul>
+        <li><a href="/help">Help and support</a></li>
+        <li><a href="/abuse">Report abuse</a></li>
+        <li><a href="/security">Report a security problem</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/terms">Terms of use</a></li>
+        <li><a href="/privacy">Privacy policy</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+        <li><a href="/transparency">Transparency</a></li>
+      </ul>
+    </div>
+  </nav>{% endblock %}
+  <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  {% block theme_form %}<form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="{% block back %}/{% endblock %}"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>{% endblock %}
+</footer>
+</body>
+</html>

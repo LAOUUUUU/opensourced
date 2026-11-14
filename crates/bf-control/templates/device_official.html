@@ -1,0 +1,21 @@
+{# The official app's steps; included by device.html. #}
+<h2 class="section-title">1. Get the {{ app.title }} app</h2>
+<ul class="app-links">{% for link in app.links %}<li><a href="{{ link.url|safe }}" rel="noopener noreferrer">{{ link.platform }}</a></li>{% endfor %}</ul>
+{% if !app.note.is_empty() %}<p class="note">{{ app.note }}</p>{% endif %}
+
+<h2 class="section-title">2. Add this setup to it</h2>
+{% if file_first %}
+<p>Download the file and import it in the app (&ldquo;Import from file&rdquo;). On a phone the app can also scan the code below.</p>
+<p class="actions"><a class="button" href="data:text/plain;charset=utf-8,{{ data }}" download="bf-{{ stem }}.conf">Download the file</a></p>
+<div class="qr" role="img" aria-label="QR code with this device's {{ app.title }} setup">{{ qr|safe }}</div>
+{% else %}
+<p>Scan this code with the app, or download the file and import it.</p>
+<div class="qr" role="img" aria-label="QR code with this device's {{ app.title }} setup">{{ qr|safe }}</div>
+<p class="actions"><a class="button" href="data:text/plain;charset=utf-8,{{ data }}" download="bf-{{ stem }}.conf">Download the file</a></p>
+{% endif %}
+
+<h2 class="section-title">3. Or copy the setup</h2>
+<pre class="config">{{ config }}</pre>
+
+
+<p class="note">If a network blocks it, edit the tunnel in the app and change the number at the end of the Endpoint line to {{ ports }}.</p>

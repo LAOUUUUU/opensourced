@@ -1,0 +1,39 @@
+{% extends "admin_base.html" %}
+{% block nav_devices %} aria-current="page"{% endblock %}
+{% block back %}/admin/devices{% endblock %}
+{% block admin %}
+<h1>Devices</h1>
+{% if rows.is_empty() %}
+<p>No devices yet.</p>
+{% else %}
+<div class="table-scroll">
+<table class="data">
+  <thead><tr><th>Id</th><th>Device</th><th>Account</th><th>Address</th><th>Added</th><th>State</th><th>Trackers</th><th></th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.id }}</td>
+      <td class="text">{{ row.name }}</td>
+      <td class="text">{{ row.account }}</td>
+      <td>{{ row.address }}</td>
+      <td>{{ row.added }}</td>
+      <td>{% if row.kicked %}kicked{% else %}ok{% endif %}</td>
+      <td>{% if row.trackers %}blocked{% else %}allowed{% endif %}</td>
+      <td>
+        <div class="row-actions">
+          {% if !row.kicked %}<a class="textlink" href="/admin/kicks?device={{ row.id }}" aria-label="Kick device {{ row.id }}, {{ row.name }}">Kick</a>{% endif %}
+          <form method="post" action="/admin/devices/remove">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="hidden" name="device" value="{{ row.id }}">
+            <button class="textbutton" type="submit" aria-label="Remove device {{ row.id }}, {{ row.name }}">Remove</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+<p class="note">Removing a device takes it off every server within seconds. It is kept as history and cannot be added again. A kick on it stays in force, and keeps its account from adding a device, until you lift it or it runs out.</p>
+{% endblock %}

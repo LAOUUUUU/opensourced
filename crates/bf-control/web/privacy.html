@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Privacy policy &middot; Barely-free</title>
+<meta name="description" content="What Barely-free keeps about you, why, for how long, who else sees it, and your rights.">
+<link rel="canonical" href="https://barely-free.com/privacy">
+<meta property="og:site_name" content="Barely-free">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Privacy policy &middot; Barely-free">
+<meta property="og:description" content="What Barely-free keeps about you, why, for how long, who else sees it, and your rights.">
+<meta property="og:url" content="https://barely-free.com/privacy">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
+  <nav aria-label="Main">
+    <a href="/#how">How it works</a>
+    <a href="/#nodes">Servers</a>
+    <a href="/help">Help</a>
+    <a href="/account">Account</a>
+  </nav>
+</header>
+
+<main id="main" class="narrow legal">
+  <h1>Privacy policy</h1>
+  <p class="updated">Last updated <time datetime="2026-11-12">12 November 2026</time></p>
+  <p class="lead">What Barely-free keeps about you, why, for how long, and who else sees it. Every line here is meant to be true of the code that runs the site today. If the code changes, this page changes first.</p>
+
+  <div class="short">
+    <h2>The short version</h2>
+    <ul>
+      <li><strong>What we keep:</strong> your email address only as a scrambled fingerprint, your devices (the name you give each one, its public key and its address inside the VPN), and short-lived sign-in records. Our servers&rsquo; memory also holds each device&rsquo;s last IP address and contact time, until about 5 minutes after it disconnects. We do not keep the sites you visit, the names you look up, or your traffic.</li>
+      <li><strong>Who else sees some of it:</strong> Cloudflare, which carries every visit to this website; Quad9, which our servers ask for the names devices look up; Resend, which emails you your sign-in code and so sees your email address; the company that rents us our servers; and Ko-fi, only if you donate.</li>
+      <li><strong>Why:</strong> to sign you in, to set up and run your devices, to stop abuse, and to keep the service running.</li>
+      <li><strong>The risks:</strong> Cloudflare and Resend are American companies, and American law applies to what they hold. Our hosting company can see how much traffic goes through our servers. Anyone who can read your email can sign in as you.</li>
+    </ul>
+  </div>
+
+  <nav class="contents" aria-label="On this page">
+    <ol>
+      <li><a href="#responsible">Who is responsible</a></li>
+      <li><a href="#keep">What we keep, why and for how long</a></li>
+      <li><a href="#servers">On our VPN servers</a></li>
+      <li><a href="#never">What we never keep</a></li>
+      <li><a href="#others">Who else handles your information</a></li>
+      <li><a href="#requests">Requests from police, courts and others</a></li>
+      <li><a href="#security">Security and breaches</a></li>
+      <li><a href="#rights">Your rights</a></li>
+      <li><a href="#children">Children</a></li>
+      <li><a href="#updates">Changes to this policy</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="responsible">1. Who is responsible</h2>
+  <p>Laoel Beqiri, who runs Barely-free from Ontario, Canada, is responsible for your personal information. For any question or request about it, <a href="/help#contact">contact us</a>. We answer within 30 days.</p>
+
+  <h2 id="keep">2. What we keep, why and for how long</h2>
+  <p>A <em>keyed fingerprint</em> below is a scrambled value made from the original with a secret key. We can check whether an address someone gives us matches one, but we cannot turn an email fingerprint back into the address, so a stolen copy of the database would not give anyone a list of email addresses. A network-address fingerprint is weaker: there are few enough IPv4 addresses that anyone holding our key could work out which address made one. That is why those are kept for a day.</p>
+  <div class="table-scroll">
+  <table class="data">
+    <thead><tr><th scope="col">What</th><th scope="col">Why</th><th scope="col">How long</th></tr></thead>
+    <tbody>
+      <tr><td>Your email address, as a keyed fingerprint. Never in plain.</td><td>To find your account when you sign in</td><td>As long as your account exists</td></tr>
+      <tr><td>Each sign-in code we send, as a keyed fingerprint, with when it was made and how many wrong tries it had</td><td>To check the code you type</td><td>A code works for 10 minutes; the record is deleted after a day</td></tr>
+      <tr><td>Each time a code is asked for: fingerprints of the email address and of your network (IP) address</td><td>To limit requests (3 an hour per email address, 10 an hour per network address) and the emails we send a day</td><td>Deleted after a day</td></tr>
+      <tr><td>Your sign-in session: a random identifier, a scrambled copy of its secret (the secret itself is only in your browser&rsquo;s cookie), and when it started and ends</td><td>To keep you signed in</td><td>60 days. If you ticked &ldquo;Keep me signed in&rdquo;, 60 days from the last day you used the site, and never more than 365 days from when you signed in. An account keeps only its 10 newest sessions.</td></tr>
+      <tr><td>Your account: a label (&ldquo;member-&rdquo; and a number), how many devices it may have, and when it was made</td><td>To run your account</td><td>As long as your account exists</td></tr>
+      <tr><td>Each device: the name you give it, its public key, its addresses inside the VPN, whether trackers are blocked for it, when it was added and, if you removed it, when</td><td>To let it connect to our servers, and to show it on your account page</td><td>As long as your account exists, removed devices included, so that a device switched off for breaking the rules stays off</td></tr>
+      <tr><td>Kicks: which device was switched off, why, by whom, from when and until when</td><td>To enforce the <a href="/terms#rules">rules</a></td><td>As long as your account exists</td></tr>
+      <tr><td>When each device last connected, and through which server</td><td>To show it on your account page</td><td>Read from our servers every few seconds and held in the website&rsquo;s memory until it restarts; the servers forget it about 5 minutes after the device disconnects (<a href="#servers">section 3</a>)</td></tr>
+      <tr><td>Your approximate location, as Cloudflare reads it from your IP address</td><td>To pick the closest server when you add a device</td><td>Used once, not kept</td></tr>
+      <tr><td>Your IP address, on the <a href="/check">Am I connected?</a> page</td><td>To tell you whether that device is on Barely-free</td><td>Used once, not kept</td></tr>
+      <tr><td>Cookies: your session, the address you asked a code for, and your colour theme</td><td>See the <a href="/cookies">cookies page</a></td><td>See the <a href="/cookies">cookies page</a></td></tr>
+      <tr><td>A nightly copy of the account database, without the sign-in records above (codes and code requests), with the key used to make the fingerprints, encrypted so that only we can open it</td><td>To recover if the computer that runs the website fails</td><td>The 30 newest nightly copies (about 30 days), on our two VPN servers</td></tr>
+      <tr><td>A copy of the account database made just before each update of the website</td><td>To go back if an update goes wrong</td><td>On the same computer, until 5 newer updates replace them</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The website and the account database run on a computer in Canada. Its log records errors and events such as &ldquo;a new account was made&rdquo;, without email or IP addresses. When an email with a code cannot be sent, it records the reason the email service gave, with any address in it taken out.</p>
+
+  <h2 id="servers">3. On our VPN servers</h2>
+  <p>WireGuard, which our servers run, keeps in memory each device&rsquo;s last IP address and port (so that replies can reach it), the time of its last contact, and how many bytes it has sent and received. Our servers make it forget all three about 5 minutes after the device&rsquo;s last contact. That only happens once the device has disconnected: a connected device is in touch every couple of minutes. Open connections are tracked in memory while they last, as on any router. Each server also keeps the list of devices allowed to connect: their public keys and addresses inside the VPN.</p>
+  <p>None of this is written to a log; the servers&rsquo; logs record their own errors, not who connected or what they did. The website is sent each device&rsquo;s last contact time and byte counts, and its last IP address with the last part removed. It keeps the contact time in its memory (<a href="#keep">section 2</a>) and throws the address away.</p>
+
+  <h2 id="never">4. What we never keep</h2>
+  <ul>
+    <li>The sites you visit, the names you look up (the servers&rsquo; own DNS keeps no record of them), or anything you send or receive.</li>
+    <li>A history of connections: when a device connected before its latest contact, or which device made which connection to which site.</li>
+    <li>Your email address in a form we can read, your name, or your birthday.</li>
+    <li>A device&rsquo;s private key. It is made once, shown to you once, and never stored.</li>
+    <li>Analytics, adverts or tracking of any kind on this website.</li>
+  </ul>
+
+  <h2 id="others">5. Who else handles your information</h2>
+  <div class="table-scroll">
+  <table class="data">
+    <thead><tr><th scope="col">Who</th><th scope="col">Where</th><th scope="col">What it does, and what it sees</th></tr></thead>
+    <tbody>
+      <tr><td>Cloudflare</td><td>United States, and its network worldwide</td><td>Carries every visit to this website. Sees your IP address, your browser&rsquo;s details, the pages you ask for and their cookies.</td></tr>
+      <tr><td>Quad9 (9.9.9.9)</td><td>Switzerland (a non-profit foundation), and its network worldwide</td><td>Our servers ask it, over an encrypted connection, for the addresses of the names devices look up (known trackers are blocked first), and it refuses names known to spread malware. It sees the names and our server&rsquo;s address, not yours, and its policy is not to record the addresses that ask it.</td></tr>
+      <tr><td>Resend</td><td>United States</td><td>Sends the emails with your sign-in codes. Sees your email address and the email, and keeps its own records of them in the United States.</td></tr>
+      <tr><td>vpshostingservice.co</td><td>Toronto, Canada, and Dallas, United States</td><td>Rents us the two VPN servers. Like any network, it can see how much traffic passes through them and where it goes.</td></tr>
+      <tr><td>Ko-fi and its payment companies</td><td>Their own countries</td><td>Only if you donate. They handle the donation; we see what Ko-fi shows us (the name and message you choose to give, and the amount), never your card details. We do not link donations to accounts.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>We do not sell your information, use it for advertising, or share it with anyone else, except as the next section says.</p>
+
+  <h2 id="requests">6. Requests from police, courts and others</h2>
+  <p>We hand over information only when a court order or warrant that is valid in Canada makes us, and we read each one carefully. A request from another country has to come through the Canadian authorities.</p>
+  <p>Even then, the most we could hand over is what sections 2 and 3 list, for the accounts the order names. We can find an account from its email address, from a device&rsquo;s public key or its address inside the VPN, and from the IP address a device last connected from while a server still holds it. We cannot say which device made a given connection to a site, and we have no history of who connected when, because we do not record them. Every request we receive is counted on the <a href="/transparency">transparency page</a>.</p>
+  <p>We will tell the person concerned whenever the law allows. Because we do not keep email addresses we can read, we can only do that if they write to us, or on the transparency page.</p>
+
+  <h2 id="security">7. Security and breaches</h2>
+  <p>We keep as little as we can, store email addresses only as fingerprints, keep only scrambled copies of session secrets, encrypt the nightly backups, and send everything over encrypted connections.</p>
+  <p>If something goes wrong in a way that creates a real risk of significant harm to anyone, we will report it to the Office of the Privacy Commissioner of Canada and say so on the <a href="/">front page</a>. We cannot email you about it, because we do not keep your email address in a form we can read. We keep a record of every breach for two years.</p>
+
+  <h2 id="rights">8. Your rights</h2>
+  <ul>
+    <li><strong>See what we hold.</strong> Most of it is on your account page. For the rest, <a href="/help#contact">contact us</a>; we may ask you to show that the account is yours, and we answer within 30 days.</li>
+    <li><strong>Correct it.</strong> Tell us if anything is wrong. To change a device, remove it and add it again.</li>
+    <li><strong>Delete it.</strong> You can remove devices yourself on your account page, and delete your whole account at the bottom of it (&ldquo;Delete my account&rdquo;). That takes your devices off every server within seconds and deletes the account, its sign-in fingerprint, its sessions, and its devices and their kicks, at once. It cannot be undone. The nightly copies still hold it until they are replaced (about 30 days), and so does a copy made before an update of the website, until 5 newer updates replace it.</li>
+    <li><strong>Withdraw your consent.</strong> Stop using Barely-free and delete your account.</li>
+    <li><strong>Complain.</strong> Write to us first. If we do not sort it out, you can complain to the <a href="https://www.priv.gc.ca/" rel="noopener noreferrer">Office of the Privacy Commissioner of Canada</a>.</li>
+  </ul>
+
+  <h2 id="children">9. Children</h2>
+  <p>Barely-free is for people 13 or older, and people under 18 need a parent&rsquo;s or guardian&rsquo;s OK (see the <a href="/terms#age">terms</a>). We collect the same little from everyone: no names, no birthdays, no profiles and no advertising. If we learn that an account belongs to someone under 13, we delete it.</p>
+
+  <h2 id="updates">10. Changes to this policy</h2>
+  <p>When this policy changes, the date at the top changes and the change is listed at the bottom of this page. For a change that matters, we will say so on the front page at least 30 days before it applies. If we ever want to use your information for something new, or share it with someone new, we will ask you first.</p>
+
+  <h2 id="contact">11. Contact</h2>
+  <p>How to reach us is on the <a href="/help#contact">help page</a>.</p>
+
+  <h2 id="changes">Changes</h2>
+  <ul class="changes">
+    <li><time datetime="2026-11-12">12 November 2026</time>: our servers ask Quad9 instead of Cloudflare&rsquo;s DNS, which also blocks names known to spread malware.</li>
+    <li><time datetime="2026-11-12">12 November 2026</time>: the servers forget a device&rsquo;s IP address about 5 minutes after it disconnects; the nightly copies leave out the sign-in records; the website&rsquo;s log never keeps an email address.</li>
+    <li><time datetime="2026-11-12">12 November 2026</time>: first version.</li>
+  </ul>
+</main>
+
+<footer>
+  <nav class="site-links" aria-label="Site">
+    <div>
+      <h2>Service</h2>
+      <ul>
+        <li><a href="/#how">How it works</a></li>
+        <li><a href="/#nodes">Servers</a></li>
+        <li><a href="/check">Am I connected?</a></li>
+        <li><a href="/status">Server status</a></li>
+        <li><a href="/#funding">Costs and funding</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Help</h2>
+      <ul>
+        <li><a href="/help">Help and support</a></li>
+        <li><a href="/abuse">Report abuse</a></li>
+        <li><a href="/security">Report a security problem</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/terms">Terms of use</a></li>
+        <li><a href="/privacy">Privacy policy</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+        <li><a href="/transparency">Transparency</a></li>
+      </ul>
+    </div>
+  </nav>
+  <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  <form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="/privacy"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>
+</footer>
+</body>
+</html>

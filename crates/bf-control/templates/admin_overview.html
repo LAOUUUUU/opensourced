@@ -1,0 +1,36 @@
+{% extends "admin_base.html" %}
+{% block nav_overview %} aria-current="page"{% endblock %}
+{% block back %}/admin{% endblock %}
+{% block admin %}
+<h1>Overview</h1>
+<ul class="stats">
+  <li><strong>{{ accounts }}</strong><span>accounts</span></li>
+  <li><strong>{{ devices }}</strong><span>devices</span></li>
+  <li><strong>{{ active_kicks }}</strong><span>kicks in force</span></li>
+</ul>
+
+<h2 class="section-title">Servers</h2>
+{% if nodes.is_empty() %}
+<p>No server is registered, or the poller is not running.</p>
+{% else %}
+<div class="table-scroll">
+<table class="data">
+  <thead><tr><th>Server</th><th>State</th><th>Devices online</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for node in nodes %}
+    <tr>
+      <td class="text">{{ node.title }}, {{ node.place }}</td>
+      <td>{{ node.state }}</td>
+      <td>{{ node.counts }}</td>
+      <td class="text">{{ node.note }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+<p class="note">{{ list_line }}</p>
+
+<h2 class="section-title">Backups</h2>
+<p class="note{% if backup_warn %} warn{% endif %}">{{ backup_line }}</p>
+{% endblock %}

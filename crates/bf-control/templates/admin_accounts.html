@@ -1,0 +1,33 @@
+{% extends "admin_base.html" %}
+{% block nav_accounts %} aria-current="page"{% endblock %}
+{% block back %}/admin/accounts{% endblock %}
+{% block admin %}
+<h1>Accounts</h1>
+<div class="table-scroll">
+<table class="data">
+  <thead><tr><th>Id</th><th>Label</th><th>Devices</th><th>Sign-in address</th><th>Admin</th><th>Made</th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.id }}</td>
+      <td class="text"><a class="textlink" href="/admin/account?id={{ row.id }}">{{ row.label }}</a></td>
+      <td>{{ row.devices }} of {{ row.limit }}</td>
+      <td>{% if row.email %}yes{% else %}none{% endif %}</td>
+      <td>{% if row.admin %}yes{% else %}no{% endif %}</td>
+      <td>{{ row.made }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2 class="section-title">Make an account</h2>
+<form method="post" action="/admin/accounts">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="new-label">Label</label>
+  <input id="new-label" type="text" name="label" maxlength="64" required autocomplete="off">
+  <label for="new-email">Sign-in address (optional; kept only as a fingerprint)</label>
+  <input id="new-email" type="email" name="email" maxlength="254" autocomplete="off">
+  <p class="actions"><button class="button" type="submit">Make the account</button></p>
+</form>
+{% endblock %}

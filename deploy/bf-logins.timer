@@ -1,0 +1,11 @@
+[Unit]
+Description=Barely-free: this server's recent SSH logins, every minute
+
+[Timer]
+# The readers call the file stale after 5 minutes, so a few missed runs say nothing.
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

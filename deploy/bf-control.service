@@ -1,0 +1,55 @@
+[Unit]
+Description=Barely-free website (bf-control)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bf-control
+Restart=on-failure
+RestartSec=2
+
+# Localhost only: the Cloudflare tunnel is the way in.
+Environment=BC_LISTEN=127.0.0.1:18500
+Environment=BC_KEY_FILE=/etc/barely-free/control.key
+Environment=BC_NODES_DIR=/etc/barely-free/nodes
+Environment=BC_RESEND_KEY_FILE=/etc/barely-free/resend.key
+Environment="BC_MAIL_FROM=Barely-Free VPN <noreply@barely-free.com>"
+# Anyone can make an account with a sign-in code (decision 010; 20 new accounts and 60
+# new-address codes a UTC day). Lao opened it on 2026-11-12.
+Environment=BC_OPEN_SIGNUP=1
+# A dedicated user owns its private database and the owner-only signing keys.
+User=barely-free
+Group=barely-free
+StateDirectory=barely-free
+StateDirectoryMode=0700
+UMask=0077
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# Outbound: the public internet only. It must reach api.resend.com (no fixed addresses, so
+# they cannot be listed here) and the nodes (public addresses). Everything inside is denied,
+# so a flaw in this program cannot be used to reach the VM's host (10.0.2.2), the home
+# network behind it or a metadata address. Loopback stays open: the tunnel comes in over it.
+# Its DNS is the local stub (127.0.0.53), which is loopback too. Pinned by tests/service_unit.rs.
+IPAddressDeny=10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 fc00::/7 fe80::/10
+
+[Install]
+WantedBy=multi-user.target

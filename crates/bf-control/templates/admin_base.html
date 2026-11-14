@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Admin · Barely-free{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<nav class="admin-nav" aria-label="Admin">
+  <a href="/admin"{% block nav_overview %}{% endblock %}>Overview</a>
+  <a href="/admin/accounts"{% block nav_accounts %}{% endblock %}>Accounts</a>
+  <a href="/admin/devices"{% block nav_devices %}{% endblock %}>Devices</a>
+  <a href="/admin/kicks"{% block nav_kicks %}{% endblock %}>Kicks</a>
+  <form method="post" action="/admin/lock">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="textbutton" type="submit">Lock</button>
+  </form>
+</nav>
+{% block admin %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,11 @@
+# The node's agent over HTTPS. deploy/deploy-caddy.sh fills in __NAME__ (the node's name,
+# for example toronto) and imports this file at the end of /etc/caddy/Caddyfile.
+#
+# The name exists only inside Barely-free: the control program connects to the node's IP
+# address and sends this name, so no DNS record is needed. The certificate comes from
+# Caddy's local CA, and the control program trusts only that root.
+__NAME__.agent.internal:8443 {
+	tls internal
+	header -Server
+	reverse_proxy 127.0.0.1:9870
+}

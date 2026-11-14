@@ -1,0 +1,57 @@
+#!/bin/sh
+# Barely-free: the one thing the web VM's backup key may do on a node.
+#
+# Installed as /usr/local/bin/bf-backup-receive by deploy/node-backup-receiver.sh, and named
+# as the forced command of the bf-backup user's only key:
+#   restrict,command="/usr/local/bin/bf-backup-receive" ssh-ed25519 AAAA... barely-free-backup
+# so sshd runs this whatever the client asks, and the request is only in SSH_ORIGINAL_COMMAND.
+#
+# It accepts exactly `put control-YYYYMMDDTHHMMSSZ.tar.age`, reads the file (already
+# encrypted on the VM with age; this node cannot read it) from standard input, at most
+# 64 MiB, and links it into /var/lib/bf-backup. Linking fails if the name exists, so nothing
+# is ever written over. Then it keeps the newest 30. The key cannot read, list or remove a
+# file. Exit 0 kept, 1 refused (the reason on standard error).
+#
+# BF_BACKUP_DIR, BF_BACKUP_KEEP and BF_BACKUP_MAX are for the tests: sshd passes no client
+# environment through. Spec: specs/backup.md.
+set -eu
+umask 077
+export LC_ALL=C
+
+dir=${BF_BACKUP_DIR:-/var/lib/bf-backup}
+keep=${BF_BACKUP_KEEP:-30}
+max=${BF_BACKUP_MAX:-67108864}
+
+refuse() {
+  echo "bf-backup-receive: $*" >&2
+  exit 1
+}
+
+request=${SSH_ORIGINAL_COMMAND:-}
+case $request in
+  "put control-"[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z.tar.age)
+    name=${request#put } ;;
+  *) refuse "only 'put control-YYYYMMDDTHHMMSSZ.tar.age' is accepted" ;;
+esac
+
+[ ! -e "$dir/$name" ] || refuse "$name is already there, and nothing is written over"
+
+tmp=$(mktemp "$dir/.incoming.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+head -c $((max + 1)) > "$tmp"
+size=$(wc -c < "$tmp" | tr -d ' ')
+[ "$size" -gt 0 ] || refuse "the upload was empty"
+[ "$size" -le "$max" ] || refuse "the upload is over $max bytes"
+ln "$tmp" "$dir/$name" 2>/dev/null || refuse "$name is already there, and nothing is written over"
+rm -f "$tmp"
+
+# The names carry the UTC time, so the oldest sort first.
+set -- "$dir"/control-*.tar.age
+extra=$(($# - keep))
+while [ "$extra" -gt 0 ]; do
+  rm -f -- "$1"
+  shift
+  extra=$((extra - 1))
+done
+
+echo "kept $name ($size bytes)"

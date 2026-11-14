@@ -1,0 +1,70 @@
+{% extends "admin_base.html" %}
+{% block nav_kicks %} aria-current="page"{% endblock %}
+{% block back %}/admin/kicks{% endblock %}
+{% block admin %}
+<h1>Kicks</h1>
+
+<h2 class="section-title">Kick a device</h2>
+<form method="post" action="/admin/kicks">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="kick-device">Device id (see the Devices page)</label>
+  <input id="kick-device" type="text" name="device" inputmode="numeric" maxlength="12" required autocomplete="off"{% if let Some(id) = prefill %} value="{{ id }}"{% endif %}>
+  <label for="kick-length">For how long: a number and a unit (90s, 30m, 2h, 7d) or forever</label>
+  <input id="kick-length" type="text" name="length" maxlength="12" required autocomplete="off" placeholder="30m">
+  <label for="kick-reason">Reason (optional, at most 200 characters)</label>
+  <input id="kick-reason" type="text" name="reason" maxlength="200" autocomplete="off">
+  <p class="actions"><button class="button" type="submit">Kick</button></p>
+</form>
+
+<h2 class="section-title">In force now</h2>
+{% if active.is_empty() %}
+<p>No kicks in force.</p>
+{% else %}
+<div class="table-scroll">
+<table class="data">
+  <thead><tr><th>Device</th><th>By</th><th>Reason</th><th>Since</th><th>Ends</th><th></th></tr></thead>
+  <tbody>
+  {% for row in active %}
+    <tr>
+      <td class="text">{{ row.device_id }} {{ row.device_name }}{% if row.removed %} (removed){% endif %}</td>
+      <td class="text">{{ row.by }}</td>
+      <td class="text">{{ row.reason }}</td>
+      <td>{{ row.started }}</td>
+      <td>{{ row.ends }}</td>
+      <td>
+        <form method="post" action="/admin/kicks/lift">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="device" value="{{ row.device_id }}">
+          <button class="textbutton" type="submit" aria-label="Lift the kick on device {{ row.device_id }}, {{ row.device_name }}">Lift</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<h2 class="section-title">History</h2>
+{% if history.is_empty() %}
+<p>No kicks yet.</p>
+{% else %}
+<div class="table-scroll">
+<table class="data">
+  <thead><tr><th>Device</th><th>By</th><th>Reason</th><th>Since</th><th>Ends</th><th>Lifted</th></tr></thead>
+  <tbody>
+  {% for row in history %}
+    <tr>
+      <td class="text">{{ row.device_id }} {{ row.device_name }}{% if row.removed %} (removed){% endif %}</td>
+      <td class="text">{{ row.by }}</td>
+      <td class="text">{{ row.reason }}</td>
+      <td>{{ row.started }}</td>
+      <td>{{ row.ends }}</td>
+      <td>{{ row.lifted }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

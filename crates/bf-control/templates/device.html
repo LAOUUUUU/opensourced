@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block back %}/account{% endblock %}
+{# No menu, footer links or theme buttons here: following one would leave the only page that
+   shows the key. #}
+{% block nav %}{% endblock %}
+{% block site_links %}{% endblock %}
+{% block theme_form %}{% endblock %}
+{% block title %}Your new device · Barely-free{% endblock %}
+{% block content %}
+<h1>Your device is ready</h1>
+{% if clashmi.is_empty() %}
+<p class="lead"><strong>{{ name }}</strong> will connect through <strong>{{ server }}</strong>{% if picked %}, the server picked for you,{% endif %} with {{ app.title }}. It starts working a few seconds after you add the setup to the {{ app.title }} app.</p>
+
+{% include "device_official.html" %}
+{% else %}
+<p class="lead"><strong>{{ name }}</strong> is ready on every server. It starts on <strong>{{ server }}</strong>{% if picked %}, the server picked for you,{% endif %}, and moves to another server or port by itself if one stops working.</p>
+
+<h2 class="section-title">Recommended: ClashMi</h2>
+<ol class="steps">
+  <li><div>Get ClashMi: <a href="https://apps.apple.com/app/clash-mi/id6744321968" rel="noopener noreferrer">iPhone and iPad</a>, or <a href="https://clashmi.app/download" rel="noopener noreferrer">Android, Mac, Windows and Linux</a>.</div></li>
+  <li><div>Download this device&rsquo;s profile:
+    <p class="actions"><a class="button" href="data:text/plain;charset=utf-8,{{ clashmi }}" download="bf-{{ stem }}-clashmi.yaml">Download the ClashMi profile</a></p></div></li>
+  <li><div>In ClashMi, open My Configs, tap +, and add the file you downloaded. Then tap &#9654; to connect.</div></li>
+</ol>
+<p class="note">Only one VPN app can be on at a time, so turn any other one off first. ClashMi is open source, made by KaringX.</p>
+
+<details class="official">
+<summary>Or use the official {{ app.title }} app, made by the people who made {{ app.title }}</summary>
+{% include "device_official.html" %}
+</details>
+{% endif %}
+
+<p class="note"><strong>This is the only time the private key is shown.</strong> We do not keep it, so it cannot be shown again. If you lose it, remove this device and add a new one. Do not reload this page: that would ask to add the device again.</p>
+<p class="actions"><a class="textlink" href="/account">Back to your account</a></p>
+{% endblock %}

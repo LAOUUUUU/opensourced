@@ -1,0 +1,37 @@
+[Unit]
+Description=Barely-free: this server's recent SSH logins, for the login alerts (bf-logins.sh)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/barely-free/bf-logins.sh
+# Root, because only root reads sshd's journal and /root/.ssh. The files belong to the group
+# bf-logins, which the website (on the VM) and the agents (on the VPN servers) are in. It may
+# write only its own folder, reads homes without changing them, and has no network at all
+# (pinned by crates/bf-control/tests/logins_script.rs).
+Group=bf-logins
+StateDirectory=barely-free-logins
+StateDirectoryMode=0750
+UMask=0027
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateNetwork=yes
+# Root owns the journal and /root/.ssh; another user's home needs this to be read.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

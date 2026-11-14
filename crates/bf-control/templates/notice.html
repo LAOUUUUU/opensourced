@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} · Barely-free{% endblock %}
+{% block content %}
+<h1>{{ heading }}</h1>
+<p class="lead">{{ message }}</p>
+<p class="actions"><a class="textlink" href="{{ back_href }}">{{ back_text }}</a></p>
+{% endblock %}

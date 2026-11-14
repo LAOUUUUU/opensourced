@@ -1,0 +1,4 @@
+Contact: https://barely-free.com/security
+Expires: 2027-11-01T00:00:00Z
+Preferred-Languages: en
+Policy: https://barely-free.com/security

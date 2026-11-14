@@ -1,0 +1,49 @@
+[Unit]
+Description=Barely-free nightly backup of the accounts database (bf-backup.sh)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/barely-free/bf-backup.sh
+# The same database and key as the website (pinned by tests/backup_units.rs). The other
+# settings (recipients, targets, the SSH key, the status file) are the script's defaults.
+Environment=BC_DB=/var/lib/barely-free/control.db
+Environment=BC_KEY_FILE=/etc/barely-free/control.key
+Nice=10
+IOSchedulingClass=idle
+
+# The website's user, because it owns the database and the key. The plain copies live
+# only in /run/bf-backup, a tmpfs folder no one else can open, removed when the run ends.
+User=barely-free
+Group=barely-free
+RuntimeDirectory=bf-backup
+RuntimeDirectoryMode=0700
+UMask=0077
+# Everything read-only but the state folder, which holds the status file.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/barely-free
+
+# The website's sandbox, setting for setting (tests/backup_units.rs compares them).
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# Outbound to the nodes' public addresses only; nothing inside (decision 009).
+IPAddressDeny=10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 fc00::/7 fe80::/10

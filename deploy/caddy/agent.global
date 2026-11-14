@@ -1,0 +1,27 @@
+# Global options for the agent's HTTPS listener. deploy/deploy-caddy.sh imports this file
+# from inside the global options block of /etc/caddy/Caddyfile.
+
+# The agent's certificates come from Caddy's own local CA. The control program trusts that
+# one root for that one node (docs/decisions/006-agent-tls-with-caddys-own-ca.md), so the
+# node itself must not add the root to its system trust store.
+skip_install_trust
+
+# Plain HTTP on port 80 is already handled by hand in the Caddyfile; no automatic redirects.
+auto_https disable_redirects
+
+# Keep HTTPS on TCP 443 (HTTP/1.1 and HTTP/2), freeing UDP 443 for AmneziaWG. A hostname
+# in a VPN profile still resolves to the same IP; the protocol and port are what matter here.
+servers :443 {
+	protocols h1 h2
+}
+
+# Slow clients are cut off here, because the agent has no header timeout of its own.
+servers :8443 {
+	timeouts {
+		read_header 5s
+		read_body 15s
+		write 30s
+		idle 30s
+	}
+	max_header_size 8KB
+}

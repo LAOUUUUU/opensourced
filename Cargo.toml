@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/bf-common", "crates/bf-agent", "crates/bf-control"]
+
+[workspace.package]
+version = "0.5.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+# Debug builds keep file and line numbers (for panics and backtraces) but not the full
+# debugger info: a fresh build folder is about a sixth smaller (0.94 GB, not 1.14 GB), same speed.
+[profile.dev]
+debug = "line-tables-only"
+
+# Argon2 is slow by design; unoptimised it makes every test that hashes a password crawl.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.release]
+strip = true

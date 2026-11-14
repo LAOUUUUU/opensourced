@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barely-free: a free VPN for anybody</title>
+<meta name="description" content="Barely-free is a free VPN built on WireGuard. Closed beta: sign-up is not open yet.">
+<meta name="color-scheme" content="dark light">
+<link rel="canonical" href="https://barely-free.com/">
+<meta property="og:site_name" content="Barely-free">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Barely-free: a free VPN for anybody">
+<meta property="og:description" content="Barely-free is a free VPN built on WireGuard. Closed beta: sign-up is not open yet.">
+<meta property="og:url" content="https://barely-free.com/">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Barely-free","alternateName":["barely-free.com"],"url":"https://barely-free.com/"}</script>
+<link rel="icon" href="/favicon.svg?v=fa005e45a4b7c0e0" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css?v=738c319f9195fc68">
+</head>
+<body class="has-float">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="/"><img src="/favicon.svg?v=fa005e45a4b7c0e0" width="26" height="26" alt="">Barely-free</a>
+  <nav aria-label="Main">
+    <a href="/#how">How it works</a>
+    <a href="/#nodes">Servers</a>
+    <a href="/help">Help</a>
+    <a href="/account">Account</a>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <p class="badge">Closed beta &middot; sign-up is not open yet</p>
+    <h1>A VPN that is fast, and <em>free for anybody.</em></h1>
+    <p class="lead">Barely-free runs on WireGuard, so it stays out of your way. One key per device, the closest server to you, and no password to lose.</p>
+    <p class="actions">
+      <a class="button" href="/signin">Sign in</a>
+      <a class="textlink" href="#how">See how it works</a>
+    </p>
+  </section>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><h3>Sign in with your email</h3><p>We send you a short code. There is no password to make up or forget.</p></li>
+      <li><h3>Get your key</h3><p>Add a device, then scan a QR code or download a file for the WireGuard app.</p></li>
+      <li><h3>Connect</h3><p>You are sent to the closest server, unless it is busy.</p></li>
+    </ol>
+  </section>
+
+  <section id="features">
+    <h2>Built for speed and quiet</h2>
+    <ul class="cards">
+      <li><h3>WireGuard</h3><p>The fast, modern VPN protocol, running inside each server's kernel so your traffic never waits on our code.</p></li>
+      <li><h3>Trackers blocked</h3><p>Known trackers are blocked by default, and you can switch that off per device. It does not block ads. Sites known to spread malware are always blocked.</p></li>
+      <li><h3>Closest server</h3><p>New devices are sent to the nearest server, and to another one when it is overloaded. You can also pick a server yourself.</p></li>
+      <li><h3>For stricter networks</h3><p>One extra option for networks that block ordinary VPNs. It is meant for light restrictions, not heavy ones.</p></li>
+    </ul>
+  </section>
+
+  <section id="nodes">
+    <h2>Servers</h2>
+    <!--nodes-->
+    <p>Two servers to start with. Live status will show here once monitoring is connected.</p>
+    <ul class="nodes">
+      <li><span class="dot" aria-hidden="true"></span><strong>Toronto</strong><span class="where">Canada</span><span class="state">Status unknown</span></li>
+      <li><span class="dot" aria-hidden="true"></span><strong>Dallas</strong><span class="where">United States</span><span class="state">Status unknown</span></li>
+    </ul>
+    <p class="note">&ldquo;Unknown&rdquo; means we have no reading yet. It does not mean a server is empty or down.</p>
+    <!--/nodes-->
+  </section>
+
+  <section id="privacy">
+    <h2>What we keep</h2>
+    <ul class="plain">
+      <li>We do not record the sites you visit. The servers&rsquo; DNS keeps no record of the names it looks up. Each server&rsquo;s memory holds every device&rsquo;s last address, last contact time and byte counts until about 5 minutes after it disconnects; none of it is written to a log.</li>
+      <li>Your email is kept only as a keyed fingerprint, so a stolen database would not give anyone a list of addresses.</li>
+      <li>A device's private key is made once, shown once, and never stored by us.</li>
+      <li>When you add a device, your approximate location (from your IP address, as Cloudflare sees it) is used once to pick the closest server, and it is not kept. If you are already on the VPN, the server's location is what counts.</li>
+      <li>An encrypted backup of the account database goes to our two servers every night, in case the computer that runs the website fails. The newest 30 are kept, so each lasts about 30 days.</li>
+    </ul>
+    <p class="note">Everything we keep, why, and for how long is in the <a href="/privacy">privacy policy</a>.</p>
+  </section>
+
+  <section id="funding">
+    <h2>Costs and funding</h2>
+    <p>Barely-free is free, and it is paid for by donations. What people give goes to the servers: keeping the two we have running, and buying more as the money allows, so more people can be let in. The service stays free whether or not anyone gives.</p>
+    <p>The two servers cost about <strong>US$60 a year</strong> together (about C$85). Nothing donated yet.</p>
+    <p class="actions">
+      <a class="button" href="https://ko-fi.com/laouuu" rel="noopener noreferrer">Donate on Ko-fi</a>
+      <span class="note">Opens another site.</span>
+    </p>
+    <p class="note">A donation is a gift, not a purchase. It buys no extra speed, no service level and no guarantee, and we do not give refunds. If the money runs low we will say so here. If it runs out, new sign-ups stop first, and we will say so here before any device is switched off.</p>
+  </section>
+
+  <section id="faq">
+    <h2>Questions</h2>
+    <details><summary>Is it really free?</summary><p>Yes, for anybody. The servers are small, so expect limits on devices per account and per server, and a &ldquo;full, try later&rdquo; message when a server is at capacity.</p></details>
+    <details><summary>Why can't I sign up yet?</summary><p>This is a closed beta while the service is rebuilt. Sign-up opens after the safeguards are in place.</p></details>
+    <details><summary>Will it block ads?</summary><p>No. It blocks known trackers, which stops some ads as a side effect, but it does not use an ad list.</p></details>
+    <details><summary>How do I let trackers through on one device?</summary><p>On your account page, press Allow trackers next to that device. It takes effect within about a minute, with nothing to download again. Blocking works through the server's own DNS, so a device that uses its own DNS is not filtered, and devices added before tracker blocking started need to be added again to get it.</p></details>
+    <details><summary>How do I know the VPN is on?</summary><p>Open <a href="/check">the check page</a> on the device. It says whether that device is on Barely-free and through which server, and it keeps nothing about you.</p></details>
+    <details><summary>Who is behind it?</summary><p>One person: Laoel Beqiri, in Ontario, Canada. It is a small independent project, paid for by donations. The rules are in the <a href="/terms">terms of use</a> and what we keep is in the <a href="/privacy">privacy policy</a>. To report misuse, see <a href="/abuse">reporting abuse</a>; for anything else, <a href="/help">help and support</a>.</p></details>
+  </section>
+</main>
+
+<footer>
+  <nav class="site-links" aria-label="Site">
+    <div>
+      <h2>Service</h2>
+      <ul>
+        <li><a href="/#how">How it works</a></li>
+        <li><a href="/#nodes">Servers</a></li>
+        <li><a href="/check">Am I connected?</a></li>
+        <li><a href="/status">Server status</a></li>
+        <li><a href="/#funding">Costs and funding</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Help</h2>
+      <ul>
+        <li><a href="/help">Help and support</a></li>
+        <li><a href="/abuse">Report abuse</a></li>
+        <li><a href="/security">Report a security problem</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/terms">Terms of use</a></li>
+        <li><a href="/privacy">Privacy policy</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+        <li><a href="/transparency">Transparency</a></li>
+      </ul>
+    </div>
+  </nav>
+  <p class="owner">&copy; 2026 Laoel Beqiri &middot; Ontario, Canada</p>
+  <form class="theme" method="post" action="/theme"><input type="hidden" name="back" value="/"><span class="theme-label">Theme</span> <button type="submit" name="theme" value="system" aria-pressed="true">System</button> <button type="submit" name="theme" value="light" aria-pressed="false">Light</button> <button type="submit" name="theme" value="dark" aria-pressed="false">Dark</button> <span class="theme-note">(<a href="/cookies">saved in a cookie</a>)</span></form>
+</footer>
+
+<a class="support-float" href="https://ko-fi.com/laouuu" rel="noopener noreferrer" aria-label="Support me on Ko-fi (opens another site)">Support me</a>
+</body>
+</html>

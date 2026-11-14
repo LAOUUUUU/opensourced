@@ -1,0 +1,22 @@
+// Barely-free's Tailscale access policy (decision 024). Not read by any program: paste it
+// into the admin console (Access controls, JSON editor), replacing the default policy.
+// What it changes from the default "allow all":
+//   - Lao's own devices keep full access to each other, as before.
+//   - The servers (tagged) can be reached on SSH (tcp:22) only, from Lao's devices.
+//   - Between servers, only the VM's nightly backup may reach the VPN servers' SSH.
+//   - No "ssh" section: Tailscale SSH stays off everywhere. The servers keep normal
+//     OpenSSH, so a login still needs an SSH key as well as the Tailscale account.
+// Grants deny everything they do not allow.
+{
+  "tagOwners": {
+    // Dallas and Toronto.
+    "tag:node": ["autogroup:admin"],
+    // The web VM (the website).
+    "tag:web": ["autogroup:admin"],
+  },
+  "grants": [
+    {"src": ["autogroup:member"], "dst": ["autogroup:member"], "ip": ["*"]},
+    {"src": ["autogroup:member"], "dst": ["tag:node", "tag:web"], "ip": ["tcp:22"]},
+    {"src": ["tag:web"], "dst": ["tag:node"], "ip": ["tcp:22"]},
+  ],
+}

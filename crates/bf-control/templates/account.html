@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block back %}/account{% endblock %}
+{% block title %}Your account · Barely-free{% endblock %}
+{% block content %}
+<h1>Your account</h1>
+<p class="lead">Signed in as <strong>{{ label }}</strong>.</p>
+
+<h2 class="section-title">Your devices</h2>
+{% if devices.is_empty() %}
+<p>You have no devices yet.</p>
+{% else %}
+<ul class="devices">
+{% for device in devices %}
+  <li>
+    <span class="device-name">{{ device.name }}</span>
+    <span class="device-meta">{{ device.address }} &middot; added {{ device.added }} &middot; {% if device.trackers %}Trackers&nbsp;blocked{% else %}Trackers&nbsp;allowed{% endif %} &middot; {{ device.seen }}</span>
+    <form method="post" action="/account/devices/trackers">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="device" value="{{ device.id }}">
+      <input type="hidden" name="on" value="{% if device.trackers %}0{% else %}1{% endif %}">
+      <button class="textbutton" type="submit">{% if device.trackers %}Allow trackers{% else %}Block trackers{% endif %}</button>
+    </form>
+    <form method="post" action="/account/devices/remove">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="device" value="{{ device.id }}">
+      <button class="textbutton" type="submit">Remove</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+<p class="note">Blocking works through the DNS in a device&rsquo;s setup. A device added before tracker blocking started is not filtered, whatever it says here: remove it and add it again to get it.</p>
+{% endif %}
+
+{% if servers.is_empty() %}
+<p class="note">Adding a device is not possible right now: no server can be reached. Try again in a minute.</p>
+{% else if can_add %}
+<form method="post" action="/account/devices">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="attempt" value="{{ attempt }}">
+  <label for="device-name">Name this device</label>
+  <input id="device-name" type="text" name="name" maxlength="64" required autocomplete="off" placeholder="My phone">
+  <fieldset class="choice">
+    <legend>Server</legend>
+    <label class="option"><input type="radio" name="server" value="auto" checked> <span>Closest to you <span class="hint">the nearest server that is not busy</span></span></label>
+{% for server in servers %}{% let note = server.note() %}
+    <label class="option"><input type="radio" name="server" value="{{ server.title }}"> <span>{{ server.title }}, {{ server.place }}{% if !note.is_empty() %} <span class="hint">({{ note }})</span>{% endif %}</span></label>
+{% endfor %}
+  </fieldset>
+  <fieldset class="choice">
+    <legend>App</legend>
+    <label class="option"><input type="radio" name="protocol" value="wireguard"{% if wireguard_first %} checked{% endif %}> <span>WireGuard <span class="hint">the standard app</span></span></label>
+    <label class="option"><input type="radio" name="protocol" value="amneziawg"{% if !wireguard_first %} checked{% endif %}> <span>AmneziaWG <span class="hint">for networks that block VPNs</span></span></label>
+  </fieldset>
+  <p class="actions"><button class="button" type="submit">Add a device</button></p>
+</form>
+{% else %}
+<p class="note">You have reached the limit of {{ limit }} devices. Remove one to add another.</p>
+{% endif %}
+
+<p class="note">To see whether a device is on the VPN right now, open <a href="/check">the check page</a> on it.</p>
+
+<h2 class="section-title">Get the app</h2>
+<div class="apps">
+{% for app in apps %}
+  <div class="app">
+    <h3>{{ app.title }}</h3>
+    <ul class="app-links">{% for link in app.links %}<li><a href="{{ link.url|safe }}" rel="noopener noreferrer">{{ link.platform }}</a></li>{% endfor %}</ul>
+    {% if !app.note.is_empty() %}<p class="note">{{ app.note }}</p>{% endif %}
+  </div>
+{% endfor %}
+</div>
+<p class="note">These open the official app stores and download pages, on other sites.</p>
+<p class="note">ClashMi moves to another port or server by itself. In the official apps, if a network blocks the VPN, edit the tunnel and change the number at the end of the Endpoint line: to 53 or 123 for WireGuard, or to 4500 for AmneziaWG.</p>
+
+{% if is_admin %}<p class="actions"><a class="textlink" href="/admin">Admin</a></p>{% endif %}
+<form method="post" action="/signout">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <p class="actions"><button class="button quiet" type="submit">Sign out</button></p>
+</form>
+
+<h2 class="section-title">Delete your account</h2>
+{% if is_admin %}
+<p class="note">An admin account cannot be deleted here.</p>
+{% else %}
+<p>This takes your devices off every server within seconds and deletes your account, its sign-in address and its devices for good. The nightly encrypted backups still hold it for up to 30 days, then it is gone from them too. It cannot be undone.</p>
+<form method="post" action="/account/delete">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="confirm-delete">Type delete to confirm</label>
+  <input id="confirm-delete" type="text" name="confirm" maxlength="16" required autocomplete="off">
+  <p class="actions"><button class="button quiet" type="submit">Delete my account</button></p>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+Your Barely-free sign-in code
+
+    {{code}}
+
+Type this code on the sign-in page to get in. It works once and
+expires in 10 minutes.
+
+Did not ask for this? Ignore this email. Nobody can sign in without
+the code, and it stops working on its own.
+
+Keep it to yourself. Nobody from Barely-free will ever ask you for
+this code.
+
+--
+You got this because this address was typed on the Barely-free sign-in page.
+Barely-free - a free VPN for anybody - closed beta
+This is an automated message; replies are not read.
