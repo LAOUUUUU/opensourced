@@ -1204,6 +1204,50 @@ async fn the_kick_history_shows_the_newest_hundred_and_no_more() {
 }
 
 #[tokio::test]
+async fn a_server_that_needs_a_reboot_or_has_updates_waiting_says_so_in_the_overview_only() {
+    let h = admin_harness();
+    let who = unlocked_admin(&h).await;
+    let board = Board::new();
+    let mut toronto = server_node(Health::Online, true);
+    toronto.reading.as_mut().unwrap().attention = Some(bf_common::attention::Attention {
+        reboot: true,
+        reboot_by: vec!["linux-image-6.12.117+deb13-amd64".to_string()],
+        waiting: vec![bf_common::attention::Waiting {
+            name: "amneziawg-dkms".to_string(),
+            version: "1.0.0-0~2026".to_string(),
+        }],
+    });
+    let mut dallas = server_node_named("dallas", "Dallas", "Canada", Health::Online, true);
+    dallas.reading.as_mut().unwrap().attention = Some(bf_common::attention::Attention::default());
+    board.set_for_test(vec![toronto, dallas], T0);
+    h.app.connect_poller(board, Arc::new(|| {}));
+
+    let body = page(&h, &who, "/admin").await.body;
+
+    let toronto = row_with(&body, "<td class=\"text\">Toronto, Canada</td>");
+    assert!(
+        toronto.contains("Needs a reboot (asked by linux-image-6.12.117+deb13-amd64)."),
+        "{toronto}"
+    );
+    assert!(
+        toronto.contains("Updates waiting: amneziawg-dkms 1.0.0-0~2026."),
+        "{toronto}"
+    );
+    let dallas = row_with(&body, "<td class=\"text\">Dallas, Canada</td>");
+    assert!(
+        !dallas.contains("reboot") && !dallas.contains("waiting"),
+        "nothing to say: {dallas}"
+    );
+
+    // Never on the public pages.
+    let public = get(&h, "/status", None).await.body;
+    assert!(
+        !public.contains("reboot") && !public.contains("amneziawg-dkms"),
+        "{public}"
+    );
+}
+
+#[tokio::test]
 async fn a_server_that_stopped_answering_shows_unknown_never_its_old_count_or_a_note() {
     let h = admin_harness();
     let who = unlocked_admin(&h).await;

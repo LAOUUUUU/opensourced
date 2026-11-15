@@ -268,7 +268,7 @@ fn together(agents: &[&NodeView]) -> (Candidate, bool) {
     };
     let mut any = false;
     for reading in agents.iter().filter_map(|node| node.reading.as_ref()) {
-        together.add_reading(reading.online, reading.load1);
+        together.add_reading(reading.online, reading.load_steady);
         any = true;
     }
     (together, any)
@@ -496,8 +496,10 @@ mod tests {
                 peers_total: online,
                 desired_version: Some(1),
                 load1: load,
+                load_steady: load,
                 peers: Vec::new(),
                 logins: None,
+                attention: None,
             }),
             problem: None,
             in_sync: true,
@@ -589,6 +591,25 @@ mod tests {
             State::Overloaded,
             "one agent's load is enough"
         );
+    }
+
+    #[test]
+    fn a_spike_in_the_load_now_is_not_overloaded_only_a_load_that_stayed_high_is() {
+        // A reboot, a nightly update or a module build: the load now is far over the line,
+        // the lowest of the last five minutes is not. On one vCPU that happens every night.
+        let mut spike = agent("Dallas", AWG, Health::Online, 1, Some(1.5));
+        spike.reading.as_mut().unwrap().load_steady = Some(0.2);
+        let all = servers(&board(vec![spike]), &Busy::default());
+        assert_eq!(all[0].state, State::Up);
+        assert_eq!(
+            all[0].load,
+            Some(20),
+            "the percentage follows the same steady load"
+        );
+
+        let mut stayed = agent("Dallas", AWG, Health::Online, 1, Some(0.3));
+        stayed.reading.as_mut().unwrap().load_steady = Some(0.95);
+        assert_eq!(word(vec![stayed]), State::Overloaded);
     }
 
     #[test]

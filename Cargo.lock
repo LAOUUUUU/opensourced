@@ -196,7 +196,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bf-agent"
-version = "0.7.0"
+version = "0.9.0"
 dependencies = [
  "axum",
  "bf-common",
@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "bf-common"
-version = "0.7.0"
+version = "0.9.0"
 dependencies = [
  "hmac",
  "serde",
@@ -217,7 +217,7 @@ dependencies = [
 
 [[package]]
 name = "bf-control"
-version = "0.7.0"
+version = "0.9.0"
 dependencies = [
  "argon2",
  "askama",

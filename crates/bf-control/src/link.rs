@@ -244,10 +244,20 @@ pub struct NodeReading {
     /// The version of the list the node holds, `None` when it has never been given one.
     pub desired_version: Option<u64>,
     pub load1: Option<f64>,
+    /// The lowest one-minute load among this node's readings of the last
+    /// [`crate::poller::STEADY_LOAD_SECS`] seconds, kept by the poller. The busy rule (the
+    /// word Overloaded, "Closest to you") reads this one, so a short spike (a reboot, a
+    /// nightly update, a module build) does not count; `load1` stays the load now, for the
+    /// admin pages. Straight from a node, with no history, it is `load1`.
+    pub load_steady: Option<f64>,
     pub peers: Vec<PeerReading>,
     /// The node's recent SSH logins, `None` from an agent that does not report them. Each one
     /// passed [`safe_login`]; the rest were dropped.
     pub logins: Option<Vec<bf_common::logins::Login>>,
+    /// What on the node's server needs Lao's attention (a reboot, updates waiting; decision
+    /// 031), only names and versions that look like Debian's; `None` from an agent that does
+    /// not report it or has no fresh file.
+    pub attention: Option<bf_common::attention::Attention>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -558,6 +568,9 @@ struct StatusWire {
     /// Read one by one, so a malformed login drops itself, not the whole reading.
     #[serde(default)]
     logins: Option<Vec<serde_json::Value>>,
+    /// Read as a whole, then cleaned; a malformed one is dropped alone.
+    #[serde(default)]
+    attention: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -595,6 +608,7 @@ impl TryFrom<StatusWire> for NodeReading {
             peers_total: wire.peers_total,
             desired_version: wire.desired_version,
             load1: wire.load1,
+            load_steady: wire.load1,
             peers: wire
                 .peers
                 .into_iter()
@@ -609,6 +623,10 @@ impl TryFrom<StatusWire> for NodeReading {
             logins: wire
                 .logins
                 .map(|items| items.into_iter().filter_map(safe_login).collect()),
+            attention: wire
+                .attention
+                .and_then(|v| serde_json::from_value::<bf_common::attention::Attention>(v).ok())
+                .map(bf_common::attention::Attention::sanitized),
         })
     }
 }
@@ -674,6 +692,35 @@ mod tests {
 
     fn reading_of(value: serde_json::Value) -> NodeReading {
         NodeReading::try_from(serde_json::from_value::<StatusWire>(value).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn what_needs_attention_is_read_cleaned_and_a_malformed_report_drops_alone() {
+        let mut value: serde_json::Value = serde_json::from_str(&status_json()).unwrap();
+        assert_eq!(
+            reading_of(value.clone()).attention,
+            None,
+            "an old agent says nothing"
+        );
+
+        value["attention"] = serde_json::json!({
+            "reboot": true,
+            "reboot_by": ["linux-image-6.12.117+deb13-amd64", "<script>"],
+            "waiting": [
+                {"name": "amneziawg-dkms", "version": "1.0.0-0~2026"},
+                {"name": "evil\u{202e}", "version": "1"}
+            ]
+        });
+        let news = reading_of(value.clone()).attention.unwrap();
+        assert!(news.reboot);
+        assert_eq!(news.reboot_by, ["linux-image-6.12.117+deb13-amd64"]);
+        assert_eq!(news.waiting.len(), 1);
+        assert_eq!(news.waiting[0].name, "amneziawg-dkms");
+
+        value["attention"] = serde_json::json!("reboot please");
+        let reading = reading_of(value);
+        assert_eq!(reading.attention, None, "a malformed report is dropped");
+        assert_eq!(reading.peers_total, 2, "and the rest of the reading stays");
     }
 
     #[test]
@@ -747,6 +794,7 @@ mod tests {
                 },
             ],
             logins: None,
+            attention: None,
         };
         serde_json::to_string(&status).unwrap()
     }

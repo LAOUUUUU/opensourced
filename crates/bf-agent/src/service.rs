@@ -143,6 +143,8 @@ pub struct Agent {
     logins: Option<Arc<dyn LoginLog>>,
     /// Whether the last reading of the logins failed, so it is logged once, not every poll.
     logins_failing: Mutex<bool>,
+    /// The same for the attention file (decision 031).
+    attention_failing: Mutex<bool>,
 }
 
 impl Agent {
@@ -213,6 +215,7 @@ impl Agent {
             trackers_failing: Mutex::new(false),
             logins: None,
             logins_failing: Mutex::new(false),
+            attention_failing: Mutex::new(false),
             quiet: Mutex::new(Quiet::new()),
         }
     }
@@ -241,6 +244,25 @@ impl Agent {
             _ => {}
         }
         logins.ok()
+    }
+
+    /// What needs attention for a status at `now` (decision 031), or `None`; a failure (a
+    /// stale or unreadable file) is logged when it starts and when it ends.
+    fn attention(&self, now: u64) -> Option<bf_common::attention::Attention> {
+        let news = self.logins.as_ref()?.attention(now);
+        let mut failing = lock(&self.attention_failing);
+        match (&news, *failing) {
+            (Err(why), false) => {
+                log(&format!("attention: {why}; the status carries none"));
+                *failing = true;
+            }
+            (Ok(_), true) => {
+                log("attention: read again");
+                *failing = false;
+            }
+            _ => {}
+        }
+        news.ok().flatten()
     }
 
     /// Keeps `set` in step with the list: after each list is applied and on every pass.
@@ -412,6 +434,7 @@ impl Agent {
         let desired_version = lock(&self.stored).as_ref().map(|desired| desired.version);
         let mut status = build_status(now, &dump, self.online_secs, desired_version, load1);
         status.logins = self.recent_logins(now);
+        status.attention = self.attention(now);
         Reply::json(200, &status)
     }
 
@@ -794,6 +817,56 @@ mod tests {
         assert_eq!(
             status["logins"],
             json!([{"at": NOW - 30, "user": "root", "from": "203.0.113.7", "key": TEST_FP, "key_name": "lao-test-key"}])
+        );
+    }
+
+    /// No logins, and fixed attention news (or a failure).
+    struct FakeAttention(Result<Option<bf_common::attention::Attention>, String>);
+    impl crate::logins::LoginLog for FakeAttention {
+        fn recent(&self, _now: u64) -> Result<Vec<bf_common::logins::Login>, String> {
+            Ok(Vec::new())
+        }
+        fn attention(&self, now: u64) -> Result<Option<bf_common::attention::Attention>, String> {
+            assert_eq!(now, NOW, "asked as of the status's time");
+            self.0.clone()
+        }
+    }
+
+    fn rig_with_attention(news: Result<Option<bf_common::attention::Attention>, String>) -> Rig {
+        Rig::new_with(FakeWg::default(), move |agent, _| {
+            agent.with_login_log(Arc::new(FakeAttention(news)))
+        })
+    }
+
+    #[test]
+    fn status_reports_what_needs_attention_and_nothing_when_it_cannot_say() {
+        let news = bf_common::attention::Attention {
+            reboot: true,
+            reboot_by: vec!["linux-image-6.12.117+deb13-amd64".to_string()],
+            waiting: vec![bf_common::attention::Waiting {
+                name: "amneziawg-dkms".to_string(),
+                version: "1.0.0-0~2026".to_string(),
+            }],
+        };
+        let status = rig_with_attention(Ok(Some(news))).status();
+        assert_eq!(
+            status["attention"],
+            json!({"reboot": true, "reboot_by": ["linux-image-6.12.117+deb13-amd64"],
+                   "waiting": [{"name": "amneziawg-dkms", "version": "1.0.0-0~2026"}]})
+        );
+        for none in [
+            Ok(None),
+            Err("the attention file is 300 minutes old".to_string()),
+        ] {
+            let status = rig_with_attention(none).status();
+            assert!(status.get("attention").is_none(), "{status}");
+            assert!(status.get("peers").is_some(), "the rest is there");
+        }
+        assert!(
+            Rig::new(FakeWg::default())
+                .status()
+                .get("attention")
+                .is_none()
         );
     }
 

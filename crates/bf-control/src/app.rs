@@ -916,7 +916,7 @@ impl App {
             };
             let (_, choice, server) = &mut servers[at];
             if let Some(reading) = &node.reading {
-                server.add_reading(reading.online, reading.load1);
+                server.add_reading(reading.online, reading.load_steady);
             }
             server.location = server.location.or(node.location);
             if choice.is_none() {
@@ -3819,8 +3819,10 @@ mod tests {
                 peers_total: 0,
                 desired_version: Some(1),
                 load1: None,
+                load_steady: None,
                 peers: Vec::new(),
                 logins: None,
+                attention: None,
             }),
             problem: None,
             in_sync: true,
@@ -4386,6 +4388,7 @@ mod tests {
             });
             view.reading.as_mut().unwrap().online = online;
             view.reading.as_mut().unwrap().load1 = Some(0.1);
+            view.reading.as_mut().unwrap().load_steady = Some(0.1);
         }
         views
     }
@@ -4483,13 +4486,26 @@ mod tests {
         // The highest load of the two counts.
         let h = two_accounts();
         let mut views = located_views([0; 4]);
-        views[1].reading.as_mut().unwrap().load1 = Some(0.95);
+        views[1].reading.as_mut().unwrap().load_steady = Some(0.95);
         board_of(&h, views);
         let r = add_closest(&h, &lao_ready(&h).await, "amneziawg", Some(MONTREAL)).await;
         assert!(r.body.contains("Endpoint = 198.51.100.9:443"), "{}", r.body);
         assert!(
             r.body.contains(&format!("PublicKey = {AWG_DALLAS}")),
             "{}",
+            r.body
+        );
+
+        // A spike in the load now (a reboot, a nightly update) does not count: only a load
+        // that stayed over the line for the last five minutes does.
+        let h = two_accounts();
+        let mut views = located_views([0; 4]);
+        views[1].reading.as_mut().unwrap().load1 = Some(1.5);
+        board_of(&h, views);
+        let r = add_closest(&h, &lao_ready(&h).await, "amneziawg", Some(MONTREAL)).await;
+        assert!(
+            r.body.contains("Endpoint = 192.0.2.7:443"),
+            "Toronto is nearer and only spiking: {}",
             r.body
         );
 

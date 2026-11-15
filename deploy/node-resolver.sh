@@ -10,6 +10,8 @@
 # address, which on Dallas's wg0 was an old 10.66 one). Its address sits in a set (off_awg0 or
 # off_wg0) that the server's agents keep in step with the website. Nothing about queries is logged. unbound forwards to Quad9's threat-blocking resolver over TLS (decision 022), so names known to
 # spread malware are refused on both ports, whatever a device's tracker switch says.
+# An answer whose time ran out is still given (RFC 8767 serve-expired) when a fresh lookup
+# takes over 1.8 s or fails, for at most an hour (decision 029).
 #
 # What it writes on the node:
 #   /etc/unbound/unbound.conf.d/barely-free.conf   the listeners, tags, forwarding and zone
@@ -199,6 +201,12 @@ server:
     hide-version: yes
     qname-minimisation: yes
     prefetch: yes
+    # RFC 8767 (decision 029): an expired name is fetched first; the stale answer (with a
+    # 30 s TTL) is used only if that takes over 1.8 s or fails, and never once an hour old: a
+    # longer window would keep a name Quad9 has just started blocking alive (decision 022).
+    serve-expired: yes
+    serve-expired-ttl: 3600
+    serve-expired-client-timeout: 1800
     num-threads: 1
     msg-cache-size: 16m
     rrset-cache-size: 32m

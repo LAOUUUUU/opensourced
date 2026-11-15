@@ -1,6 +1,6 @@
 # Barely-free: public source copy
 
-This is a public, scrubbed copy of the source of [Barely-free](https://barely-free.com), a free VPN built on WireGuard (this copy is version 0.7.0). It holds the Rust code (the node agent `bf-agent`, the control program and website `bf-control`, and the shared library `bf-common`), the deploy scripts and the design notes.
+This is a public, scrubbed copy of the source of [Barely-free](https://barely-free.com), a free VPN built on WireGuard (this copy is version 0.9.0). It holds the Rust code (the node agent `bf-agent`, the control program and website `bf-control`, and the shared library `bf-common`), the deploy scripts and the design notes.
 
 - Addresses, host names and personal details are placeholders (`<vm ip>`, `<your-tailnet>.ts.net`, and documentation-range addresses in scripts and tests). **This is not a drop-in deployment of the live service**; the runbooks below describe how the live one is set up.
 - The private working notes, research briefs and specs are not part of this copy, so a few links below point at files that are not here.
@@ -28,7 +28,7 @@ The plan, the choices and the reasons are in [research/rebuild/RESEARCH.md](rese
 | `crates/bf-common` | Shared library: reads `wg show dump`, builds the status, checks and plans peer lists, signs and verifies requests |
 | `crates/bf-agent` | The node agent: HTTP service on localhost, the `probe` command, the tracker switch, and `trackers build` (the tracker list for the node's resolver) |
 | `crates/bf-control` | The control program: the public website (pages in `web/`, built into the binary), the database and the admin command line |
-| `deploy/` | `tailscale-join.sh`, `tailscale-policy.hujson`, `tailscale-archive-keyring.gpg` and `node-tailnet-guard.sh` (SSH through Tailscale, decision 024), `bf-agent.service` (systemd), `deploy-agent.sh`, `node-selftest.sh` (checks a build against a real WireGuard on a node), `deploy-caddy.sh` with `caddy/` (HTTPS in front of the agent), `node-tlscheck.sh` (checks that HTTPS), `node-roots/` (each node's public root certificate), `node-resolver.sh` (the node's DNS with tracker blocking), `bf-logins.{sh,service,timer}` (each server's recent SSH logins for the login alerts, installed by both deploy scripts) and `seed-known-logins.sh` |
+| `deploy/` | `tailscale-join.sh`, `tailscale-policy.hujson`, `tailscale-archive-keyring.gpg` and `node-tailnet-guard.sh` (SSH through Tailscale, decision 024), `bf-agent.service` (systemd), `deploy-agent.sh`, `node-selftest.sh` (checks a build against a real WireGuard on a node), `deploy-caddy.sh` with `caddy/` (HTTPS in front of the agent), `node-tlscheck.sh` (checks that HTTPS), `node-roots/` (each node's public root certificate), `node-resolver.sh` (the node's DNS with tracker blocking), `node-tune.sh` with `node-sysctl.conf` (the node's network tuning, UDP GRO forwarding, quiet ufw and a UTC clock, decision 029), `bf-logins.{sh,service,timer}` (each server's recent SSH logins for the login alerts, installed by both deploy scripts) and `seed-known-logins.sh` |
 | `docs/` | Module docs, decision records, architecture and current state; start at `docs/TABLEOFCONTENTS.md` |
 | `specs/` | Specs, written before the code |
 | `research/` | Research briefs |
@@ -79,6 +79,13 @@ deploy/deploy-agent.sh root@<node ip> -i ~/.ssh/<key> -o IdentitiesOnly=yes
 It builds on the Mac, copies the binary and the systemd unit, creates `/etc/barely-free/agent.secret` on the node the first time (the secret is made there and never leaves it), starts the service and runs `bf-agent probe`. Safe to run again to update. The service runs as a throwaway user with only `CAP_NET_ADMIN` and no network except localhost.
 
 To check a build against a real WireGuard before or after a change to how the agent talks to `wg`, run `deploy/node-selftest.sh` on a node (the commands are in its header). It works on two throwaway interfaces and never touches `wg0`.
+
+### Tuning a node (decision 029)
+```bash
+deploy/node-tune.sh root@<node>.<your-tailnet>.ts.net -i ~/.ssh/your_key -o IdentitiesOnly=yes
+```
+
+One SSH connection; nobody is disconnected. It puts `deploy/node-sysctl.conf` in `/etc/sysctl.d/99-vpn.conf` (forwarding, BBR with `fq`, 7.5 MB socket buffers, a longer input queue, MTU probing: what Dallas and Toronto already ran, byte for byte, now kept here; plus a 65,536-entry connection-tracking table instead of 8,192, with `nf_conntrack` loaded at boot so it applies), installs `ethtool` and turns on UDP GRO forwarding on the interface that reaches the internet, now and at every boot (`bf-udp-gro.service`; left out where the kernel says `[fixed]`), turns ufw's logging off (the rules stay; the internet's scans no longer fill the kernel log) and sets the clock to UTC, so daily timers fire at 00:00 UTC instead of 18:30 UTC and unattended-upgrades runs at 06:00–07:00 UTC (the full list is in decision 029). It refuses to run where ufw is not active, changes the running system before any file so a failing command leaves nothing half done, and ends by checking that every sysctl value in force matches the file. Safe to run again. What it found (the old zone, ufw's log level) is noted in `/etc/barely-free/node-tune.before`; the way back for each change is in the script's header. Run `deploy/node-resolver.sh` too on a new server: since decision 029 unbound also answers from its cache, for at most an hour, while a fresh lookup is slow or failing (`serve-expired`).
 
 ### HTTPS in front of the agent
 The agent only listens on localhost. Caddy on each node puts HTTPS in front of it on port 8443, as `<node>.agent.internal`, with a certificate from Caddy's own CA (no DNS record needed; the caller connects to the node's IP, sends that name and trusts only that node's root from `deploy/node-roots/`). The holding page on ports 80 and 443 is not touched.
@@ -141,7 +148,7 @@ So that Google and Bing can find the public pages and name them properly (Lao, 2
 - `/robots.txt` allows everything and names the sitemap. It has **no `Disallow` line and never mentions `/admin`**: a `Disallow` hides a page's `noindex` from Google, and a line for `/admin` would announce a page the site hides.
 - Every public page names itself as its canonical address (`<link rel="canonical">`, on the bare `barely-free.com`). `www.barely-free.com` answers with the same page, and this is what tells a search engine which one counts.
 - `/check` is `noindex` and not in the sitemap (its page shows the visitor's own address). The sign-in side and the admin panel were already `noindex` or hidden.
-- Each public page carries plain link-preview tags (Open Graph and `twitter:card` = `summary`) that repeat its own title, description and address, so a shared link shows its title and description in a chat app. There is no preview image yet. When sign-up is open the front page's preview description changes together with its description.
+- Each public page carries link-preview tags (Open Graph and `twitter:card` = `summary_large_image`) that repeat its own title, description and address, plus one picture, `/assets/share.png` (1200×630, a still of the front page's first screen, named by its fingerprint), so a shared link shows its title, description and a large image in a chat app. A last `theme-color` in the accent colours Discord's card edge (browsers never use it). To change the picture: edit `tools/share-image/banner.html`, run `python3 tools/share-image/render.py`, open the address it prints in a browser, then run the tests and copy the new fingerprint into the eight pages. When sign-up is open the front page's preview description changes together with its description.
 - The front page also carries one block of `WebSite` data (`name` "Barely-free", `alternateName` `barely-free.com`) so Google can name the site. It is data, not a script: it was checked in a real browser that the page's strict policy lets it be, and the "no scripts" tests still refuse any script that runs.
 
 Tests (`src/web/tests/seo.rs`) tie the sitemap, `robots.txt`, the canonical links, the previews, the data block and the files in `web/` together: a new page file must be added to the sitemap or named as kept out. Details: `docs/modules/bf-control.md` ("Search engines"), `specs/seo.md`, decision `docs/decisions/021-search-engines.md`, `research/seo/RESEARCH.md`.
@@ -318,7 +325,7 @@ To restore for real, after a `fetch`: `deploy/restore-backup.sh put root@web.<yo
 | Word | When |
 |---|---|
 | **Up** | some agent of the server is online and it is not busy |
-| **Overloaded** | online, and its devices online (both agents together) reach `BC_NODE_BUSY_ONLINE` (default 40) or its load reaches `BC_NODE_BUSY_LOAD` (default 0.9): the same rule that makes "Closest to you" skip it |
+| **Overloaded** | online, and its devices online (both agents together) reach `BC_NODE_BUSY_ONLINE` (default 40) or its load stayed at or over `BC_NODE_BUSY_LOAD` (default 0.9) in every reading of the last five minutes (decision 030, so a reboot or a nightly job does not count): the same rule that makes "Closest to you" skip it |
 | **Being fixed** | the server is disabled: `bf-control node disable <name>` (and `enable` when it is back) |
 | **Down** | every agent has failed 3 passes in a row (about 30 s); you are emailed after 3 minutes |
 | **Status unknown** | no recent reading (the poller stopped, or an agent has not answered yet); it does not mean down |
@@ -366,6 +373,9 @@ deploy/deploy-agent.sh root@toronto.<your-tailnet>.ts.net -i ~/.ssh/your_key -o 
 ```
 
 The seed script teaches the website the last 90 days of logins on all three servers (nothing is stored on the Mac) and restarts it. The website's log says "login alerts are on". To test it, log in to a server from a new network, such as a phone's hotspot: one email should arrive within a minute. `BF_LOGINS=off` in an agent's environment stops it reporting logins.
+
+## Needs attention, in the admin overview (decision 031)
+Each VPN server's `bf-attention.timer` (installed by `deploy/deploy-agent.sh`) notes once an hour whether the server asked for a reboot, and which package asked, and which package updates are waiting, including the AmneziaWG ones unattended-upgrades never installs. The agents add it to their status, and the admin overview shows it in the server's note: "Needs a reboot (asked by …)." and "Updates waiting: … .". Nothing is public and nothing is emailed. Rolling it out is `deploy/deploy-web.sh`, then `deploy/deploy-agent.sh` on each server.
 
 ## SSH only through Tailscale (done 2026-11-12: public SSH closed)
 The servers accept SSH only from the admin's tailnet, still with SSH keys (decision `docs/decisions/024-ssh-through-tailscale.md`). **Every SSH command in this README uses the Tailscale names:** `root@dallas.<your-tailnet>.ts.net`, `root@toronto.<your-tailnet>.ts.net` (both with `-i ~/.ssh/your_key -o IdentitiesOnly=yes`) and `root@web.<your-tailnet>.ts.net` (the VM, port 22). Tailscale must be on on the Mac. If Tailscale fails on a server, the way back in is the hosting panel's console (safe mode or emergency mode) for Dallas and Toronto, and the host PC for the VM. Public SSH is closed by two layers:

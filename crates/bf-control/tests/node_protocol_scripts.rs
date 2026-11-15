@@ -988,7 +988,14 @@ fn deploy_agent_remote(server: &Server, new_unit: &str) -> Output {
         );
     std::fs::create_dir_all(node.join("usr/local/bin")).unwrap();
     // What the copies put in /tmp before the remote part runs.
-    for name in ["bf-logins.sh", "bf-logins.service", "bf-logins.timer"] {
+    for name in [
+        "bf-logins.sh",
+        "bf-logins.service",
+        "bf-logins.timer",
+        "bf-attention.sh",
+        "bf-attention.service",
+        "bf-attention.timer",
+    ] {
         write(
             &node.join("tmp/bf-logins").join(name),
             &format!("# {name}\n"),

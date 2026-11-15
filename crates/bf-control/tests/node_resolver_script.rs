@@ -258,6 +258,13 @@ fn a_fresh_node_gets_the_resolver_the_redirect_the_daily_list_and_the_switch_in_
         "    module-config: \"respip validator iterator\"",
         "    log-queries: no",
         "    log-replies: no",
+        // RFC 8767 (decision 029): an expired name is fetched first; the stale answer is
+        // used only if the fetch takes longer than 1.8 s, and never once an hour old (a longer
+        // window would keep a name Quad9 has just started blocking alive, decision 022).
+        "    serve-expired: yes",
+        "    serve-expired-ttl: 3600",
+        "    serve-expired-client-timeout: 1800",
+        "    prefetch: yes",
         "    forward-tls-upstream: yes",
         // Quad9's threat-blocking resolver (decision 022): it already refused the domain that
         // delivered an infostealer, which Cloudflare's 1.1.1.1 serves.

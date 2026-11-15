@@ -1,5 +1,6 @@
 //! Shared pieces of Barely-free: reading WireGuard state, peer lists, request signing.
 
+pub mod attention;
 pub mod logins;
 pub mod peers;
 pub mod sign;

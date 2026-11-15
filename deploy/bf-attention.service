@@ -1,0 +1,37 @@
+[Unit]
+Description=Barely-free: what on this server needs attention, for the admin overview (bf-attention.sh)
+After=apt-daily.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/barely-free/bf-attention.sh
+# Root, to read apt's lists and /run. The file belongs to the group bf-logins, which the
+# agents are in, in the folder the login timer also writes (decision 031). It may write only
+# that folder, needs no capability and has no network (pinned by
+# crates/bf-control/tests/attention_script.rs).
+Group=bf-logins
+StateDirectory=barely-free-logins
+StateDirectoryMode=0750
+UMask=0027
+ProtectSystem=strict
+ProtectHome=yes
+PrivateNetwork=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

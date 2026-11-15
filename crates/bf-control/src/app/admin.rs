@@ -127,6 +127,28 @@ struct KicksPage<'a> {
 }
 
 /// The device id in `?device=<id>` (the whole query, 1 to 12 digits), or nothing.
+/// What needs attention on a server, in words for the overview (decision 031): "Needs a
+/// reboot (asked by …)." and "Updates waiting: name version, …." Empty when nothing does.
+fn attention_note(news: &bf_common::attention::Attention) -> String {
+    let mut parts = Vec::new();
+    if news.reboot {
+        parts.push(if news.reboot_by.is_empty() {
+            "Needs a reboot.".to_string()
+        } else {
+            format!("Needs a reboot (asked by {}).", news.reboot_by.join(", "))
+        });
+    }
+    if !news.waiting.is_empty() {
+        let waiting: Vec<String> = news
+            .waiting
+            .iter()
+            .map(|w| format!("{} {}", w.name, w.version))
+            .collect();
+        parts.push(format!("Updates waiting: {}.", waiting.join(", ")));
+    }
+    parts.join(" ")
+}
+
 fn kick_prefill(query: Option<&str>) -> Option<&str> {
     let id = query?.strip_prefix("device=")?;
     (!id.is_empty() && id.len() <= 12 && id.bytes().all(|b| b.is_ascii_digit())).then_some(id)
@@ -315,12 +337,25 @@ impl App {
                             // No reading is "unknown", never a count of 0.
                             _ => "unknown".to_string(),
                         },
-                        note: match (&node.problem, node.health, node.in_sync) {
-                            (Some(problem), _, _) => problem.to_string(),
-                            (None, Health::Online, false) => {
-                                "does not hold the current list yet".to_string()
-                            }
-                            _ => String::new(),
+                        note: {
+                            let state = match (&node.problem, node.health, node.in_sync) {
+                                (Some(problem), _, _) => problem.to_string(),
+                                (None, Health::Online, false) => {
+                                    "does not hold the current list yet".to_string()
+                                }
+                                _ => String::new(),
+                            };
+                            let attention = node
+                                .reading
+                                .as_ref()
+                                .and_then(|reading| reading.attention.as_ref())
+                                .map(attention_note)
+                                .unwrap_or_default();
+                            [state, attention]
+                                .into_iter()
+                                .filter(|part| !part.is_empty())
+                                .collect::<Vec<_>>()
+                                .join(" ")
                         },
                     })
                     .collect();

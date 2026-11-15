@@ -690,8 +690,10 @@ mod tests {
             peers_total: 0,
             desired_version: Some(1),
             load1: None,
+            load_steady: None,
             peers: vec![],
             logins: Some(logins),
+            attention: None,
         });
         node
     }

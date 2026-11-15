@@ -49,6 +49,12 @@ const FONT_LICENSE: &str = include_str!("../web/fonts/OFL.txt");
 const GEIST_PATH: &str = "/assets/fonts/geist-latin-wght-normal.woff2";
 const BODONI_PATH: &str = "/assets/fonts/bodoni-moda-latin-normal.woff2";
 const BODONI_ITALIC_PATH: &str = "/assets/fonts/bodoni-moda-latin-italic.woff2";
+/// The picture a shared link shows in a chat app or a social site (`og:image`): 1200 by 630,
+/// drawn by `tools/share-image/` from the front page's first screen. Pages name it with its
+/// fingerprint, so like a font it may be kept for good.
+const SHARE_PNG: &[u8] = include_bytes!("../web/share.png");
+const SHARE_PATH: &str = "/assets/share.png";
+const PNG: &str = "image/png";
 /// A font's address carries its fingerprint (`?v=` in the stylesheet), so a changed file is
 /// a new address and the old one may be kept for good.
 const FONT_CACHE: &str = "public, max-age=31536000, immutable";
@@ -116,6 +122,7 @@ pub fn page(method: &Method, path: &str) -> Page {
         "/assets/site.css" => ("text/css; charset=utf-8", "public, max-age=3600", SITE_CSS),
         "/favicon.svg" => ("image/svg+xml", "public, max-age=86400", FAVICON),
         GEIST_PATH | BODONI_PATH | BODONI_ITALIC_PATH => (WOFF2, FONT_CACHE, ""),
+        SHARE_PATH => (PNG, FONT_CACHE, ""),
         "/assets/fonts/OFL.txt" => (TEXT, "public, max-age=86400", FONT_LICENSE),
         "/robots.txt" => (TEXT, "public, max-age=3600", ROBOTS),
         "/sitemap.xml" => (XML, "public, max-age=3600", SITEMAP),
@@ -149,13 +156,15 @@ pub fn page(method: &Method, path: &str) -> Page {
         cache_control,
         allow: None,
         body,
-        bytes: font_bytes(path),
+        bytes: file_bytes(path),
     }
 }
 
-/// A font file's bytes, for the three addresses the stylesheet names; nothing for any other.
-fn font_bytes(path: &str) -> Option<&'static [u8]> {
+/// A file of bytes: the three fonts the stylesheet names and the share image the pages name;
+/// nothing for any other address.
+fn file_bytes(path: &str) -> Option<&'static [u8]> {
     match path {
+        SHARE_PATH => Some(SHARE_PNG),
         GEIST_PATH => Some(GEIST),
         BODONI_PATH => Some(BODONI),
         BODONI_ITALIC_PATH => Some(BODONI_ITALIC),
@@ -204,6 +213,16 @@ fn secured_body(page: &Page, body: Body) -> Response<Body> {
     );
     if let Some(allow) = page.allow {
         builder = builder.header("allow", allow);
+    }
+    // The share image is shown by chat apps and social sites from their own pages, so it may
+    // be loaded from anywhere. It is the only PNG; everything else stays this site's own.
+    if page.content_type == PNG
+        && let Some(headers) = builder.headers_mut()
+    {
+        headers.insert(
+            "cross-origin-resource-policy",
+            axum::http::HeaderValue::from_static("cross-origin"),
+        );
     }
     builder
         .body(body)
@@ -1652,6 +1671,64 @@ mod tests {
     }
 
     #[test]
+    fn the_share_image_is_a_1200_by_630_png_kept_a_year_that_other_sites_may_show() {
+        let image = get(SHARE_PATH);
+        assert_eq!((image.status, image.content_type), (200, PNG));
+        assert_eq!(image.cache_control, FONT_CACHE, "named by its fingerprint");
+        let bytes = image.bytes.expect("a file of bytes");
+        assert_eq!(bytes, SHARE_PNG);
+        assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"), "a PNG");
+        // The first chunk is IHDR: width and height, big-endian, after the 16 bytes before it.
+        let size = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+        assert_eq!(&bytes[12..16], b"IHDR");
+        assert_eq!(
+            (size(16), size(20)),
+            (1200, 630),
+            "the size previews expect"
+        );
+        assert!(
+            bytes.len() < 300_000,
+            "{} bytes: small enough to fetch at once",
+            bytes.len()
+        );
+        assert_eq!(page(&Method::HEAD, SHARE_PATH).status, 200);
+        assert_eq!(page(&Method::POST, SHARE_PATH).status, 405);
+        assert_eq!(get("/share.png").status, 404, "one address");
+    }
+
+    #[tokio::test]
+    async fn only_the_share_image_may_be_loaded_by_other_sites() {
+        // A chat app or a social site shows the picture from its own pages, so this one file
+        // says other sites may load it. Pages, fonts and the icon stay this site's own.
+        let header = |path: &'static str| async move {
+            let request = Request::builder().uri(path).body(Body::empty()).unwrap();
+            let response = handle(
+                State(Site {
+                    app: None,
+                    live: None,
+                }),
+                request,
+            )
+            .await;
+            response.headers()["cross-origin-resource-policy"]
+                .to_str()
+                .unwrap()
+                .to_string()
+        };
+        assert_eq!(header(SHARE_PATH).await, "cross-origin");
+        for path in [
+            "/",
+            "/terms",
+            BODONI_PATH,
+            "/favicon.svg",
+            "/assets/site.css",
+            "/nope",
+        ] {
+            assert_eq!(header(path).await, "same-origin", "{path}");
+        }
+    }
+
+    #[test]
     fn the_fonts_licence_is_served_beside_them() {
         let licence = get("/assets/fonts/OFL.txt");
         assert_eq!((licence.status, licence.content_type), (200, TEXT));
@@ -2966,8 +3043,10 @@ mod tests {
             peers_total: 9,
             desired_version: Some(3),
             load1: Some(0.42),
+            load_steady: Some(0.42),
             peers: Vec::new(),
             logins: None,
+            attention: None,
         });
         node.problem = Some(crate::poller::Problem::Ahead {
             node: 8,

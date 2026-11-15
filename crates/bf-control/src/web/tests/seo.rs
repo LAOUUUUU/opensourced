@@ -267,10 +267,62 @@ fn link_previews_repeat_each_pages_own_title_description_and_address() {
             vec!["Barely-free"],
             "{path}"
         );
+        // The large card: the picture under the words (Lao, 2026-11-14, "the cool banners").
         assert_eq!(
             metas(html, "name", "twitter:card"),
-            vec!["summary"],
+            vec!["summary_large_image"],
             "{path}"
+        );
+        let image = format!("{SITE}{SHARE_PATH}?v={:016x}", fingerprint_bytes(SHARE_PNG));
+        assert_eq!(
+            metas(html, "property", "og:image"),
+            vec![image.as_str()],
+            "{path}"
+        );
+        assert_eq!(
+            metas(html, "property", "og:image:type"),
+            vec![PNG],
+            "{path}"
+        );
+        assert_eq!(
+            metas(html, "property", "og:image:width"),
+            vec!["1200"],
+            "{path}"
+        );
+        assert_eq!(
+            metas(html, "property", "og:image:height"),
+            vec!["630"],
+            "{path}"
+        );
+        let alt = metas(html, "property", "og:image:alt");
+        assert_eq!(alt.len(), 1, "{path}");
+        assert!(alt[0].contains("Barely-free"), "{path}: {alt:?}");
+    }
+}
+
+#[test]
+fn a_chat_apps_accent_is_the_sites_accent_and_no_browser_uses_it() {
+    // Discord colours a link's card from `theme-color` and takes the last one (seen
+    // 2026-11-14: the card showed the light theme's ground). Browsers take the first whose
+    // media matches, and one of the two theme lines always does, so a last line with no media
+    // colours the card and nothing else.
+    let accent = SITE_CSS
+        .split(":root {")
+        .nth(1)
+        .and_then(|block| block.split("--accent:").nth(1))
+        .and_then(|rest| rest.split(';').next())
+        .unwrap()
+        .trim();
+    for (path, html) in INDEXABLE {
+        let colours = metas(html, "name", "theme-color");
+        assert_eq!(colours.len(), 3, "{path}: {colours:?}");
+        assert_eq!(colours[2], accent, "{path}");
+        let last = html
+            .find(&format!("<meta name=\"theme-color\" content=\"{accent}\">"))
+            .unwrap_or_else(|| panic!("{path}: the accent line has no media"));
+        assert!(
+            html.find("(prefers-color-scheme: light)\">").unwrap() < last,
+            "{path}: after both theme lines"
         );
     }
 }

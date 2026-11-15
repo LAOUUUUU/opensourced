@@ -13,6 +13,11 @@
 # server's recent SSH logins into /var/lib/barely-free-logins as root, and puts every agent
 # in the group bf-logins that may read it (a drop-in, bf-agent*.service.d/logins.conf), so
 # the status carries them for the login alerts (specs/login-alerts.md).
+#
+# And bf-attention.timer (deploy/bf-attention.{sh,service,timer}, decision 031), which writes
+# once an hour into the same folder whether the server needs a reboot and which package
+# updates are waiting, so the admin overview shows it. The agents read it through the same
+# group; nothing else changes.
 set -eu
 
 target=x86_64-unknown-linux-musl
@@ -29,7 +34,8 @@ scp "$@" "target/$target/release/bf-agent" "$host:/usr/local/bin/bf-agent.new"
 # The unit and the login timer's files in one connection: a plain tar (no macOS extras),
 # unpacked as root's own files into a fresh private folder.
 COPYFILE_DISABLE=1 tar --format ustar -C deploy -cf - \
-  bf-agent.service bf-logins.sh bf-logins.service bf-logins.timer |
+  bf-agent.service bf-logins.sh bf-logins.service bf-logins.timer \
+  bf-attention.sh bf-attention.service bf-attention.timer |
   ssh "$@" "$host" 'rm -rf /tmp/bf-logins && mkdir -m 0700 /tmp/bf-logins &&
     tar --no-same-owner -C /tmp/bf-logins -xf - &&
     mv /tmp/bf-logins/bf-agent.service /etc/systemd/system/bf-agent.service.new'
@@ -67,6 +73,8 @@ getent group bf-logins >/dev/null 2>&1 || groupadd --system bf-logins
 install -d -m 0755 /usr/local/lib/barely-free
 install -m 0755 /tmp/bf-logins/bf-logins.sh /usr/local/lib/barely-free/
 install -m 0644 /tmp/bf-logins/bf-logins.service /tmp/bf-logins/bf-logins.timer /etc/systemd/system/
+install -m 0755 /tmp/bf-logins/bf-attention.sh /usr/local/lib/barely-free/
+install -m 0644 /tmp/bf-logins/bf-attention.service /tmp/bf-logins/bf-attention.timer /etc/systemd/system/
 rm -rf /tmp/bf-logins
 for agent in /etc/systemd/system/bf-agent.service /etc/systemd/system/bf-agent-*.service; do
   [ -e "$agent" ] || continue
@@ -81,6 +89,10 @@ systemctl start bf-logins.service ||
   echo "bf-logins did not run (see journalctl -u bf-logins); the agents report no logins until it does" >&2
 systemctl enable --now bf-logins.timer >/dev/null 2>&1 ||
   echo "bf-logins.timer could not be started" >&2
+systemctl start bf-attention.service ||
+  echo "bf-attention did not run (see journalctl -u bf-attention); the agents report no attention until it does" >&2
+systemctl enable --now bf-attention.timer >/dev/null 2>&1 ||
+  echo "bf-attention.timer could not be started" >&2
 systemctl enable bf-agent.service >/dev/null 2>&1
 systemctl restart bf-agent.service
 # A server with both protocols has a second agent (deploy/node-add-protocol.sh): same binary.

@@ -1,0 +1,11 @@
+[Unit]
+Description=Barely-free: what on this server needs attention, every hour
+
+[Timer]
+# The agents call the file stale after three hours, so a missed run or two says nothing.
+OnBootSec=2min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

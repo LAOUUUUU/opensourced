@@ -81,7 +81,8 @@ pub const EQUAL_KM: f64 = 300.0;
 pub struct Busy {
     /// Devices online on the server, all its agents together (`BC_NODE_BUSY_ONLINE`).
     pub online: u64,
-    /// The server's one-minute load average (`BC_NODE_BUSY_LOAD`).
+    /// The server's steady load (`BC_NODE_BUSY_LOAD`): the lowest one-minute load of its last
+    /// five minutes of readings, so a short spike does not count (decision 030).
     pub load: f64,
 }
 
@@ -128,7 +129,8 @@ pub struct Candidate {
     pub location: Option<Location>,
     /// Devices online on it now, all its agents together.
     pub online: u64,
-    /// Its one-minute load average, the highest its agents report, if any does.
+    /// Its steady load (the lowest one-minute load of the last five minutes), the highest its
+    /// agents report, if any does.
     pub load: Option<f64>,
 }
 

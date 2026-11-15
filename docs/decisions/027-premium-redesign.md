@@ -23,4 +23,4 @@ The site was made plain on purpose on 2026-11-10 after Lao said it "looks super 
 - A change to a font, the stylesheet or the icon needs the `?v=` fingerprints re-stamped (tests name each address).
 - The public export carries the fonts; the OFL permits it with the license text, which is in the folder.
 - Older browsers get a complete still page: Firefox before 159 and Safari before 26 have no scroll-driven rules; Firefox has no page transitions; the FAQ's height animation is Chromium only; without `popover` the menu links wrap under the name.
-- **Not done, on purpose:** GSAP or any script; a share image; per-visitor persistence of the pause switch; load, uptime or counts on the front page's map.
+- **Not done, on purpose:** GSAP or any script; a share image (added later the same day, decision 021 amended); per-visitor persistence of the pause switch; load, uptime or counts on the front page's map.

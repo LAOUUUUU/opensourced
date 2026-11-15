@@ -30,6 +30,8 @@ pub struct FakeNode {
     pub skew: AtomicI64,
     pub down: AtomicBool,
     pub hang: AtomicBool,
+    /// The one-minute load the node reports (0.1 unless a test sets it).
+    pub load: Mutex<Option<f64>>,
     pub requests: Mutex<Vec<String>>,
     /// The time each request was signed at.
     pub times: Mutex<Vec<u64>>,
@@ -57,6 +59,7 @@ impl FakeNode {
             clock,
             skew: AtomicI64::new(0),
             down: AtomicBool::new(false),
+            load: Mutex::new(Some(0.1)),
             hang: AtomicBool::new(false),
             requests: Mutex::default(),
             times: Mutex::default(),
@@ -99,7 +102,7 @@ impl Transport for LocalTransport {
             let time = out.time.to_string();
             let reply = node.agent.handle(
                 now as u64,
-                Some(0.1),
+                *node.load.lock().unwrap(),
                 &Request {
                     method: out.method,
                     path_and_query: out.path,

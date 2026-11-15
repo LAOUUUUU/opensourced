@@ -21,8 +21,10 @@ pub(super) fn agent(
         peers_total: online,
         desired_version: Some(1),
         load1: load,
+        load_steady: load,
         peers: Vec::new(),
         logins: None,
+        attention: None,
     });
     node
 }

@@ -409,10 +409,18 @@ impl Settings {
     }
 }
 
+/// How far back a node's steady load looks: it counts as busy by load only if its one-minute
+/// load was at or over the line in every reading of the last five minutes (decision 030). On
+/// one vCPU a reboot, a nightly update or a module build spikes the load for a minute or two.
+pub const STEADY_LOAD_SECS: u64 = 300;
+
 /// What the poller remembers about a node between passes.
 #[derive(Clone, Default)]
 struct Slot {
     cache: Option<Cached>,
+    /// The node's one-minute loads of the last [`STEADY_LOAD_SECS`], oldest first, with when
+    /// each was read.
+    loads: std::collections::VecDeque<(u64, f64)>,
     failures: u32,
     health: Health,
     last_good: Option<u64>,
@@ -727,6 +735,17 @@ impl Poller {
         slot.failures = 0;
         slot.health = Health::Online;
         slot.last_good = Some(now);
+        if let Some(load) = reading.load1 {
+            slot.loads.push_back((now, load));
+        }
+        while slot
+            .loads
+            .front()
+            .is_some_and(|&(at, _)| at.saturating_add(STEADY_LOAD_SECS) <= now)
+        {
+            slot.loads.pop_front();
+        }
+        reading.load_steady = slot.loads.iter().map(|&(_, load)| load).reduce(f64::min);
         let in_sync = problem.is_none() && reading.desired_version == Some(list.version);
         let view = NodeView {
             name: node.name.clone(),
@@ -1532,6 +1551,7 @@ mod tests {
                     peers_total: 3,
                     desired_version: Some(1),
                     load1: Some(0.4),
+                    load_steady: Some(0.4),
                     peers: vec![crate::link::PeerReading {
                         public_key: "KEYKEYKEYKEYKEYKEYKEYKEYKEYKEYKEYKEYKEYKEYA=".to_string(),
                         online: true,
@@ -1546,6 +1566,7 @@ mod tests {
                         key: None,
                         key_name: None,
                     }]),
+                    attention: None,
                 }),
                 problem: Some(Problem::Internal),
                 in_sync: true,
@@ -2137,6 +2158,47 @@ mod tests {
         let wanted = key.clone();
         wait_for("the poked pass", Box::new(move || seen.has(&wanted))).await;
         runner.abort();
+    }
+
+    // ---- the steady load ----
+
+    #[tokio::test]
+    async fn a_short_spike_in_load_leaves_the_steady_load_low_and_five_minutes_of_it_does_not() {
+        let rig = rig();
+        let toronto = rig.node("toronto", 0x11);
+        *toronto.load.lock().unwrap() = Some(0.2);
+        for _ in 0..6 {
+            rig.pass().await;
+            rig.advance(10);
+        }
+
+        // A reboot or a nightly job: the one-minute load jumps.
+        *toronto.load.lock().unwrap() = Some(1.5);
+        rig.pass().await;
+        let reading = rig.view("toronto").reading.unwrap();
+        assert_eq!(reading.load1, Some(1.5), "the admin pages see the load now");
+        assert_eq!(
+            reading.load_steady,
+            Some(0.2),
+            "the lowest of the last five minutes"
+        );
+
+        // A pass that fails keeps what was seen; still high five minutes on, it counts.
+        toronto.down.store(true, Ordering::SeqCst);
+        rig.advance(10);
+        rig.pass().await;
+        toronto.down.store(false, Ordering::SeqCst);
+        for _ in 0..(STEADY_LOAD_SECS / 10) {
+            rig.advance(10);
+            rig.pass().await;
+        }
+        assert_eq!(rig.view("toronto").reading.unwrap().load_steady, Some(1.5));
+
+        // And it comes down as soon as the load does.
+        *toronto.load.lock().unwrap() = Some(0.3);
+        rig.advance(10);
+        rig.pass().await;
+        assert_eq!(rig.view("toronto").reading.unwrap().load_steady, Some(0.3));
     }
 
     // ---- the interval setting ----

@@ -35,6 +35,10 @@ pub struct Status {
     /// agent; absent when it could not read them, so an older website sees nothing new.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logins: Option<Vec<crate::logins::Login>>,
+    /// What on the server needs Lao's attention (a reboot, updates waiting; decision 031),
+    /// filled in by the agent; absent when there is no fresh file to read it from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attention: Option<crate::attention::Attention>,
 }
 
 /// Removes the last part of a client address so a response or log line never holds it
@@ -86,6 +90,7 @@ pub fn build_status(
         load1,
         peers,
         logins: None,
+        attention: None,
     }
 }
 
